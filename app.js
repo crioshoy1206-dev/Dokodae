@@ -157,9 +157,15 @@
   L.control.zoom({ position: 'bottomleft' }).addTo(map);
   const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
   // CARTO 타일은 API 키가 필요해져서 OpenStreetMap 기본 타일을 써요 (다크 모드는 CSS로 반전)
-  const tiles = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  // 기본은 글자가 적은 회색 지도(Esri), 상세 지도(OSM)는 토글로 바꿀 수 있어요
+  const grey = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+    maxZoom: 19, maxNativeZoom: 16, crossOrigin: true, attribution: 'Tiles © Esri'
+  });
+  const osm = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19, crossOrigin: true, attribution: '© OpenStreetMap contributors'
-  }).addTo(map);
+  });
+  const tiles = grey.addTo(map);
+  L.control.layers({ '간결 지도': grey, '상세 지도': osm }, null, { position: 'bottomleft', collapsed: true }).addTo(map);
   // 인터넷이 안 되거나 타일이 안 오면 앱에 들어 있는 간략 지도를 깔아요
   let baseOn = false, tileErr = 0;
   function useOfflineBase() {
@@ -181,7 +187,8 @@
     };
     document.head.appendChild(sc);
   }
-  tiles.on('tileerror', (e) => { if (e.tile) e.tile.style.visibility = 'hidden'; if (++tileErr >= 3) useOfflineBase(); });
+  const onTileErr = (e) => { if (e.tile) e.tile.style.visibility = 'hidden'; if (++tileErr >= 3) useOfflineBase(); };
+  grey.on('tileerror', onTileErr); osm.on('tileerror', onTileErr);
   if (!navigator.onLine) useOfflineBase();
 
   const zoomCls = () => { const z = map.getZoom(), c = map.getContainer().classList; c.toggle('z-st', z < 14); c.toggle('z-fd', z < 15); c.toggle('z-lb', z < 12); c.toggle('z-wd', z < 11); };
