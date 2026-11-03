@@ -348,7 +348,7 @@
     const H = panel.offsetHeight;
     if (state === 'full') return 0;
     if (state === 'half') return Math.max(0, H - Math.round(window.innerHeight * 0.48));
-    return Math.max(0, H - 132);
+    return Math.max(0, H - 58);
   }
   function setSheet(state, keepMap) {
     if (isDesk()) { panel.style.transform = ''; return; }
