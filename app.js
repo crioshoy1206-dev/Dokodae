@@ -157,8 +157,8 @@
   L.control.zoom({ position: 'bottomleft' }).addTo(map);
   const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
   // CARTO 타일은 API 키가 필요해져서 OpenStreetMap 기본 타일을 써요 (다크 모드는 CSS로 반전)
-  const tiles = L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
-    maxZoom: 16, crossOrigin: true, attribution: 'Tiles © Esri'
+  const tiles = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19, crossOrigin: true, attribution: '© OpenStreetMap contributors'
   }).addTo(map);
   // 인터넷이 안 되거나 타일이 안 오면 앱에 들어 있는 간략 지도를 깔아요
   let baseOn = false, tileErr = 0;
