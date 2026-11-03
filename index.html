@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>도코데</title>
+<meta name="theme-color" content="#0f6e5a">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/icon.svg">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" crossorigin="anonymous">
+<style>
+:root{--bg:#f6f5f1;--card:#fff;--ink:#1b1f1d;--sub:#5d6662;--line:#e3e1da;--pri:#0f6e5a;--pri-soft:#e3f1ec;--warn:#b4471f;--warn-soft:#fbe9e1;--now:#fff6d6;--now-line:#e7c55a;--food:#c8432f;--food-soft:#f7e3de;--radius:14px;--c:var(--pri);
+  --pw:clamp(360px,26vw,460px);--navh:60px;--shadow:0 6px 24px rgba(0,0,0,.16)}
+@media (prefers-color-scheme:dark){:root{--bg:#121514;--card:#1c201e;--ink:#ecefed;--sub:#9aa5a0;--line:#2c3330;--pri:#4fc3a1;--pri-soft:#1d3a32;--warn:#ff8a65;--warn-soft:#3a241c;--now:#3a3417;--now-line:#8a7428;--food:#ef7a64;--food-soft:#3a2420;color-scheme:dark}}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",sans-serif;font-size:16px;line-height:1.5;-webkit-text-size-adjust:100%}
+button,input,textarea,select{font:inherit;color:inherit}
+button{cursor:pointer}
+
+/* ---------- 배경 지도 ---------- */
+#map{position:fixed;inset:0;z-index:0;background:#dfe6e6}
+@media (prefers-color-scheme:dark){#map{background:#1b2224}.leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) brightness(.85) contrast(.9)}}
+.leaflet-container{font:inherit}
+.leaflet-div-icon{background:none;border:0}
+.pin{width:26px;height:26px;border-radius:50%;background:var(--c);color:#fff;font:700 12px/22px system-ui,sans-serif;text-align:center;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4)}
+.pin.start{background:#fff;color:var(--c);border:3px solid var(--c);line-height:20px}
+.pin.move{background:#fff;color:var(--c);border:2px dashed var(--c)}
+.pin.cur{outline:4px solid rgba(231,197,90,.75)}
+.fpin{width:16px;height:16px;transform:rotate(45deg);border-radius:3px;border:2px solid #fff;background:var(--food);box-shadow:0 1px 3px rgba(0,0,0,.35)}
+.fpin.alt{background:#fff;border:2.5px solid var(--food)}
+.me{width:18px;height:18px;border-radius:50%;background:#1a73e8;border:3px solid #fff;box-shadow:0 0 0 6px rgba(26,115,232,.22),0 1px 4px rgba(0,0,0,.4)}
+.leaflet-tooltip.lb{font-weight:600;font-size:12px;padding:1px 6px}
+.leaflet-tooltip.st{background:transparent;border:0;box-shadow:none;padding:0;font-size:11px;color:#59625f;text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 3px #fff}
+.leaflet-tooltip.fd{color:var(--food);font-size:11px;padding:1px 5px}
+.leaflet-tooltip.ward{background:transparent;border:0;box-shadow:none;padding:0;color:#7b8582;font-size:11px;letter-spacing:.08em}
+.z-st .leaflet-tooltip.st,.z-fd .leaflet-tooltip.fd,.z-lb .leaflet-tooltip.lb,.z-wd .leaflet-tooltip.ward{display:none}
+.leaflet-popup-content{margin:10px 14px;font-size:14px;line-height:1.45}
+.leaflet-popup-content ul{margin:6px 0 0;padding-left:18px;font-size:13px}
+.popup a{color:var(--pri)}
+.b-land{fill:#f4f3ee;stroke:#c9c6bc;stroke-width:.8px}.b-built{fill:#ebe6dc;stroke:none}.b-water{fill:#b9d1dc;stroke:none}
+.b-river{stroke:#b9d1dc;fill:none;stroke-width:2px}.b-road2{stroke:#dcd6c8;fill:none;stroke-width:1.2px}.b-road1{stroke:#e2b874;fill:none;stroke-width:2px}.b-rail{stroke:#9aa0a6;fill:none;stroke-width:1px;stroke-dasharray:4 3}
+#map.offline{background:#cfdfe6}
+
+/* 지도 위 상단 바: 시계 + 날짜 */
+#topbar{position:fixed;z-index:500;top:calc(10px + env(safe-area-inset-top));left:10px;right:10px;display:flex;flex-direction:column;gap:6px;pointer-events:none}
+#topbar > *{pointer-events:auto}
+#clock{align-self:flex-start;background:var(--card);border:1px solid var(--line);border-radius:999px;padding:4px 12px;font-size:13px;color:var(--sub);box-shadow:var(--shadow)}
+#clock b{color:var(--ink)}
+.days{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding:2px 2px 6px}
+.days::-webkit-scrollbar{display:none}
+.dchip{flex:none;border:1px solid var(--line);background:var(--card);border-radius:999px;padding:6px 12px;font-size:14px;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.12)}
+.dchip.on{background:var(--pri);border-color:var(--pri);color:#fff;font-weight:700}
+#mapbtns{position:fixed;z-index:500;right:10px;top:calc(100px + env(safe-area-inset-top));display:flex;flex-direction:column;gap:8px}
+.mbtn{width:44px;height:44px;border-radius:12px;border:1px solid var(--line);background:var(--card);box-shadow:var(--shadow);font-size:20px;display:grid;place-items:center;padding:0}
+.mbtn.on{color:#1a73e8;border-color:#1a73e8}
+#toast{position:fixed;z-index:900;left:50%;top:calc(100px + env(safe-area-inset-top));transform:translateX(-50%);background:rgba(20,24,23,.88);color:#fff;font-size:14px;padding:8px 14px;border-radius:10px;max-width:86vw;text-align:center}
+
+/* ---------- 도구창 ---------- */
+#panel{position:fixed;z-index:600;background:var(--bg);display:flex;flex-direction:column;box-shadow:var(--shadow)}
+#grab{flex:none;padding:6px 16px 8px;touch-action:none;user-select:none;-webkit-user-select:none;cursor:grab}
+#grab .bar{width:40px;height:5px;border-radius:3px;background:var(--line);margin:0 auto 6px}
+#peek{font-size:14px;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#peek b{color:var(--ink)}
+#view{flex:1;overflow-y:auto;overscroll-behavior:contain;padding:4px 14px 20px;-webkit-overflow-scrolling:touch}
+nav{display:flex;background:var(--pri)}
+nav button{flex:1;border:0;background:none;padding:8px 0 7px;font-size:11px;color:rgba(255,255,255,.78);display:flex;flex-direction:column;align-items:center;gap:3px;letter-spacing:-.01em}
+nav button svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+nav button.on{color:#fff;font-weight:700}
+@media (prefers-color-scheme:dark){nav{background:#0f5a4a}}
+
+/* 모바일: 아래 시트 + 하단 버튼 */
+@media (max-width:899px){
+  nav{position:fixed;z-index:700;left:0;right:0;bottom:0;padding-bottom:env(safe-area-inset-bottom);height:calc(var(--navh) + env(safe-area-inset-bottom))}
+  nav button.on svg{stroke-width:2.4}
+  #panel{left:0;right:0;bottom:calc(var(--navh) + env(safe-area-inset-bottom));height:calc(100% - var(--navh) - env(safe-area-inset-bottom) - env(safe-area-inset-top) - 54px);border-radius:16px 16px 0 0;transition:transform .28s cubic-bezier(.2,.8,.2,1);will-change:transform}
+  #panel.dragging{transition:none}
+  .leaflet-control-zoom{display:none}
+  .leaflet-bottom.leaflet-left{bottom:auto;top:calc(92px + env(safe-area-inset-top))}
+  .leaflet-control-attribution{font-size:9px;opacity:.8}
+  /* 모바일 글자 크기 */
+  html,body{font-size:14px}
+  #clock{font-size:12px;padding:3px 10px}
+  .dchip{font-size:13px;padding:5px 11px}
+  #peek{font-size:13px}
+  #view{padding:2px 12px 16px}
+  .card{padding:10px 12px;margin:8px 0}
+  .k{font-size:11px}
+  .big{font-size:15.5px;margin:2px 0 4px}
+  .det,.muted{font-size:13px}
+  .btn{font-size:14px;padding:8px 12px}
+  .chip{font-size:13px;padding:5px 11px}
+  .tag{font-size:12px}
+  .dayhead h2{font-size:15px}
+  .dayhead .sub,.legend{font-size:12px}
+  .stop{grid-template-columns:38px 24px minmax(0,1fr);gap:7px;padding:8px 4px}
+  .stop .time{font-size:12px}
+  .num{width:22px;height:22px;font-size:11px}
+  .what > b{font-size:14px}
+  .what > small{font-size:12px}
+  .todo li{font-size:13px;padding-left:22px}
+  .todo li::before{width:14px;height:14px}
+  .todo li.ride{padding-left:28px}
+  .meal{margin-left:45px}
+  .pick{font-size:13px}
+  .msg{font-size:14px}
+  .ja{font-size:17px}
+  input[type=search],textarea,input[type=text],input[type=datetime-local]{font-size:16px;padding:8px 10px}
+  .seg button{font-size:13px;padding:6px 0}
+}
+/* PC: 오른쪽에 붙은 반듯한 도구창 + 세로 아이콘 바 */
+@media (min-width:900px){
+  :root{--rail:72px;--radius:6px}
+  nav{position:fixed;z-index:700;top:0;right:0;bottom:0;width:var(--rail);flex-direction:column;justify-content:flex-start;padding-top:8px}
+  nav button{flex:none;height:72px;font-size:12px;gap:5px}
+  nav button.on{background:rgba(255,255,255,.16);box-shadow:inset 3px 0 0 #fff}
+  #panel{top:0;bottom:0;right:var(--rail);width:var(--pw);border-left:1px solid var(--line);box-shadow:-2px 0 12px rgba(0,0,0,.08)}
+  #grab{display:none}
+  #view{padding:8px 18px 24px}
+  #topbar{right:calc(var(--pw) + var(--rail) + 16px);left:16px;top:16px}
+  #clock,.dchip,.mbtn{border-radius:6px}
+  #mapbtns{right:calc(var(--pw) + var(--rail) + 16px);top:auto;bottom:24px}
+  .mbtn{width:40px;height:40px}
+  #toast{left:calc(50% - (var(--pw) + var(--rail))/2)}
+  .chip,.btn,.tag,.seg,.seg button,input[type=search],textarea,input[type=text],input[type=datetime-local],.meal,.msg,.stop,.todo li.ride{border-radius:6px}
+  .card{box-shadow:none}
+  .dayhead{border-bottom:1px solid var(--line);padding-bottom:8px}
+}
+
+/* ---------- 도구창 내용 ---------- */
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:12px 14px;margin:10px 0}
+.now{background:var(--now);border-color:var(--now-line)}
+.k{font-size:12px;color:var(--sub);font-weight:600;letter-spacing:.02em}
+.big{font-size:18px;font-weight:700;margin:2px 0 6px;line-height:1.4}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.chips{display:flex;gap:6px;overflow-x:auto;padding:4px 0 8px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:none;border:1px solid var(--line);background:var(--card);border-radius:999px;padding:6px 12px;font-size:14px;white-space:nowrap}
+.chip.on{background:var(--pri);border-color:var(--pri);color:#fff}
+.btn{border:0;background:var(--pri);color:#fff;border-radius:10px;padding:9px 13px;font-weight:600;font-size:15px}
+.btn.ghost{background:var(--pri-soft);color:var(--pri)}
+.btn:disabled{opacity:.5}
+.det{font-size:14px;color:var(--sub);margin-top:4px}
+.det b{color:var(--ink);font-weight:600}
+.tag{display:inline-block;font-size:13px;background:var(--pri-soft);color:var(--pri);border-radius:8px;padding:3px 8px;margin:6px 6px 0 0;border:0;text-decoration:none}
+.ja{font-size:20px;font-weight:600}
+ol{padding-left:20px;margin:8px 0}
+ol li{margin:6px 0}
+.tip{background:var(--pri-soft);border-radius:10px;padding:8px 10px;font-size:14px;margin-top:8px}
+.chk{background:var(--warn-soft);color:var(--warn);border-radius:8px;padding:2px 8px;font-size:12px}
+.muted{color:var(--sub);font-size:14px}
+.hide{display:none!important}
+input[type=search],textarea,input[type=text],input[type=datetime-local]{width:100%;border:1px solid var(--line);background:var(--card);border-radius:10px;padding:10px 12px;font-size:16px}
+textarea{resize:none}
+.seg{display:flex;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:3px;margin:8px 0}
+.seg button{flex:1;border:0;background:none;border-radius:8px;padding:7px 0;font-size:14px;color:var(--sub)}
+.seg button.on{background:var(--pri);color:#fff;font-weight:700}
+
+/* 일정 (동선 지도와 같은 모양) */
+.dayhead{margin:10px 0 6px}
+.dayhead h2{margin:0;font-size:17px;display:flex;align-items:center;gap:8px}
+.dayhead h2 i{width:10px;height:10px;border-radius:50%;background:var(--c);flex:none}
+.dayhead .sub{color:var(--sub);font-size:13px}
+.stop{display:grid;grid-template-columns:44px 28px minmax(0,1fr);gap:8px;padding:10px 6px;border-radius:10px;cursor:pointer;align-items:start}
+.stop.on{background:var(--card);box-shadow:inset 3px 0 0 var(--c)}
+.stop.cur{background:var(--now);box-shadow:inset 3px 0 0 var(--now-line)}
+.stop .time{font-family:ui-monospace,Menlo,monospace;font-size:13px;color:var(--sub);font-variant-numeric:tabular-nums;padding-top:3px}
+.num{width:26px;height:26px;border-radius:50%;background:var(--c);color:#fff;font-size:12px;font-weight:700;display:grid;place-items:center}
+.num.move{background:transparent;border:2px dashed var(--c);color:var(--c)}
+.num.start{background:var(--card);color:var(--c);border:3px solid var(--c)}
+.what{min-width:0}
+.what > b{font-weight:600}
+.what > small{display:block;color:var(--sub);font-size:13px}
+.nowtag{display:inline-block;background:var(--now-line);color:#3b2f00;font-size:11px;font-weight:700;border-radius:6px;padding:0 6px;margin-left:6px;vertical-align:2px}
+.todo{list-style:none;margin:6px 0 2px;padding:0;display:flex;flex-direction:column;gap:4px}
+.todo li{position:relative;padding-left:24px;font-size:14px;line-height:1.45;cursor:pointer;border-radius:6px}
+.todo li::before{content:"";position:absolute;left:0;top:2px;width:16px;height:16px;border:1.5px solid var(--c);border-radius:4px;background:var(--card)}
+.todo li.ride{font-weight:600;background:color-mix(in srgb,var(--c) 10%,transparent);padding:4px 8px 4px 30px}
+.todo li.ride::before{left:8px;top:6px}
+.todo li.done{color:var(--sub);text-decoration:line-through}
+.todo li.done::before{background:var(--c);box-shadow:inset 0 0 0 2px var(--card)}
+.stags .tag{font-size:12px;padding:2px 7px;margin-top:4px}
+.meal{margin:2px 0 8px 52px;border:1px solid var(--line);background:var(--card);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:4px}
+@media (max-width:420px){.meal{margin-left:0}}
+.meal h3{margin:0 0 2px;font-size:13px;color:var(--food)}
+.pick{display:grid;grid-template-columns:18px minmax(0,1fr) auto;gap:6px;align-items:baseline;cursor:pointer;border-radius:6px;padding:3px 4px;font-size:14px}
+.pick.on{outline:2px solid #d6336c;outline-offset:-2px}
+.pick .mk{color:var(--food)}
+.pick small{color:var(--sub);font-size:12px}
+.pick .pwalk{display:block;color:#d6336c;font-weight:600}
+.pick .pwalk:empty{display:none}
+.pick a{font-size:12px;color:var(--sub);white-space:nowrap}
+.legend{display:flex;flex-wrap:wrap;gap:6px 12px;font-size:12px;color:var(--sub);margin:4px 0 8px}
+.legend span{display:inline-flex;align-items:center;gap:5px}
+
+
+/* 일정 편집 */
+.btn.sm{font-size:13px;padding:6px 10px;flex:none;white-space:nowrap}
+.btn.danger{background:var(--warn-soft);color:var(--warn)}
+.ebtn{float:right;margin:0 0 4px 8px;border:1px solid var(--line);background:var(--card);color:var(--pri);border-radius:6px;font-size:12px;font-weight:600;padding:3px 9px}
+.etag{display:inline-block;font-size:11px;color:var(--sub);border:1px solid var(--line);border-radius:5px;padding:0 5px;margin-left:6px;vertical-align:2px}
+.stop.gone{opacity:.55;cursor:default}
+.stop.gone b{text-decoration:line-through}
+.addstop{display:block;width:100%;margin:8px 0;padding:10px;border:1.5px dashed var(--line);border-radius:10px;background:none;color:var(--pri);font-weight:600;font-size:14px}
+.edit{border-color:var(--pri);box-shadow:0 0 0 1px var(--pri) inset}
+.edit label{display:block;font-size:12px;color:var(--sub);font-weight:600;margin-top:8px}
+.edit label input,.edit label textarea{display:block;margin-top:3px;font-weight:400;color:var(--ink)}
+.edit input[type=time]{border:1px solid var(--line);background:var(--card);border-radius:10px;padding:9px 8px;font-size:16px;width:100%}
+.erow{display:flex;gap:8px;align-items:flex-end}
+.erow .et{flex:none;width:136px}
+.pres{display:flex;flex-direction:column;gap:4px;margin-top:6px}
+.pr{text-align:left;border:1px solid var(--line);background:var(--card);border-radius:8px;padding:7px 10px;font-size:14px}
+.pr small{display:block;color:var(--sub);font-size:12px}
+#map.picking,#map.picking .leaflet-interactive{cursor:crosshair}
+.pin.draft{background:#d6336c;line-height:22px}
+@media (min-width:900px){.addstop,.ebtn,.pr,.edit input[type=time]{border-radius:6px}}
+/* AI 묻기 */
+.chat{display:flex;flex-direction:column;gap:10px}
+.msg{max-width:90%;padding:10px 12px;border-radius:14px;white-space:pre-wrap;word-break:break-word;font-size:15px}
+.msg.u{align-self:flex-end;background:var(--pri);color:#fff;border-bottom-right-radius:4px}
+.msg.a{align-self:flex-start;background:var(--card);border:1px solid var(--line);border-bottom-left-radius:4px}
+.msg img{max-width:160px;border-radius:8px;display:block;margin-bottom:6px}
+.msg > div{white-space:normal}
+.msg [data-askabout]{display:none}
+.typing{color:var(--sub);font-size:14px}
+#composer{flex:none;border-top:1px solid var(--line);background:var(--bg);padding:8px 10px}
+#composer .in{display:flex;gap:6px;align-items:flex-end}
+#composer textarea{flex:1;min-height:42px;max-height:120px}
+.ico{border:1px solid var(--line);background:var(--card);border-radius:10px;width:42px;height:42px;font-size:20px;flex:none;padding:0}
+
+/* 보여주기 · 긴급 */
+.show{position:fixed;inset:0;z-index:2000;background:#fff;color:#111;display:flex;flex-direction:column;justify-content:center;padding:24px;text-align:center}
+.show .ja{font-size:34px;line-height:1.45}
+.show .ko{color:#666;margin-top:16px}
+.show .x{position:absolute;top:calc(14px + env(safe-area-inset-top));right:16px;border:0;background:#eee;border-radius:999px;padding:8px 14px}
+.sosbar{background:var(--warn-soft);border:1px solid var(--warn);color:var(--warn)}
+a.tel{display:flex;justify-content:space-between;align-items:center;text-decoration:none;color:inherit}
+a.tel .n{font-size:16px;white-space:nowrap;flex:none;margin-left:10px;font-weight:700;color:var(--warn);font-variant-numeric:tabular-nums}
+</style>
+</head>
+<body>
+<div id="map" aria-label="동선 지도"></div>
+<div id="topbar"><div id="clock"></div><div class="days" id="days"></div></div>
+<div id="mapbtns">
+  <button class="mbtn" id="locBtn" aria-label="내 위치" title="내 위치">◎</button>
+  <button class="mbtn" id="fitBtn" aria-label="이날 동선 전체 보기" title="이날 동선 전체 보기">⤢</button>
+</div>
+<aside id="panel" aria-label="도구창">
+  <div id="grab"><div class="bar"></div><div id="peek"></div></div>
+  <div id="view"></div>
+  <div id="composer" class="hide"><div class="in">
+    <button class="ico" id="photoBtn" aria-label="사진으로 묻기">📷</button>
+    <input type="file" id="photo" accept="image/*" capture="environment" class="hide">
+    <textarea id="q" rows="1" placeholder="막힌 상황을 적어 주세요"></textarea>
+    <button class="btn" id="send">보내기</button>
+  </div></div>
+</aside>
+<nav id="nav">
+  <button data-tab="plan"><svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4M8 14h3"/></svg><span>일정</span></button>
+  <button data-tab="ask"><svg viewBox="0 0 24 24"><path d="M5 5h14a1.5 1.5 0 0 1 1.5 1.5v9A1.5 1.5 0 0 1 19 17h-7l-4.5 3.5V17H5a1.5 1.5 0 0 1-1.5-1.5v-9A1.5 1.5 0 0 1 5 5z"/><path d="M8.5 11h.01M12 11h.01M15.5 11h.01"/></svg><span>AI 묻기</span></button>
+  <button data-tab="cards"><svg viewBox="0 0 24 24"><rect x="4" y="3.5" width="13" height="17" rx="2"/><path d="M7.5 8h6M7.5 11.5h6M7.5 15h4M20 7v12.5a1.5 1.5 0 0 1-1.5 1.5"/></svg><span>상황카드</span></button>
+  <button data-tab="sos"><svg viewBox="0 0 24 24"><path d="M12 3.5 21 19.5H3z"/><path d="M12 10v4.5M12 17.2h.01"/></svg><span>긴급</span></button>
+</nav>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" crossorigin="anonymous"></script>
+<script src="/data/cards.js"></script>
+<script src="/data/route.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>
