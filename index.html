@@ -46,6 +46,9 @@ button{cursor:pointer}
 /* 지도 위 상단 바: 시계 + 날짜 */
 #topbar{position:fixed;z-index:500;top:calc(10px + env(safe-area-inset-top));left:10px;right:10px;display:flex;flex-direction:column;gap:6px;pointer-events:none}
 #topbar > *{pointer-events:auto}
+@font-face{font-family:"GN Kill Gothic";src:url(/fonts/gn-kill-gothic-ub-kana.woff2) format("woff2");font-weight:400 900;font-display:swap}
+#brand{align-self:flex-start;font-family:"GN Kill Gothic",-apple-system,"Noto Sans KR",sans-serif;font-size:22px;line-height:1;color:var(--pri);background:var(--card);border:1px solid var(--line);border-radius:10px;padding:6px 12px;box-shadow:var(--shadow);letter-spacing:.5px}
+@media (max-width:700px){#brand{font-size:18px;padding:5px 10px}}
 #clock{align-self:flex-start;background:var(--card);border:1px solid var(--line);border-radius:999px;padding:4px 12px;font-size:13px;color:var(--sub);box-shadow:var(--shadow)}
 #clock b{color:var(--ink)}
 .days{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding:2px 2px 6px}
@@ -241,7 +244,7 @@ a.tel .n{font-size:16px;white-space:nowrap;flex:none;margin-left:10px;font-weigh
 </head>
 <body>
 <div id="map" aria-label="동선 지도"></div>
-<div id="topbar"><div id="clock"></div><div class="days" id="days"></div></div>
+<div id="topbar"><div id="brand">DokoDae</div><div id="clock"></div><div class="days" id="days"></div></div>
 <div id="mapbtns">
   <button class="mbtn" id="locBtn" aria-label="내 위치" title="내 위치">◎</button>
   <button class="mbtn" id="fitBtn" aria-label="이날 동선 전체 보기" title="이날 동선 전체 보기">⤢</button>
