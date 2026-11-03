@@ -151,6 +151,8 @@
 
   // ---------- 지도 ----------
   const map = L.map('map', { zoomControl: false, attributionControl: false });
+  const syncLabels = () => document.getElementById('map').classList.toggle('low-zoom', map.getZoom() < 14);
+  map.on('zoomend', syncLabels);
   L.control.attribution({ position: 'bottomleft', prefix: false }).addTo(map);
   L.control.zoom({ position: 'bottomleft' }).addTo(map);
   const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
