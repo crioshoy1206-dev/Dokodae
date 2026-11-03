@@ -19,7 +19,7 @@
   ];
   const CARD = Object.fromEntries(window.CARDS.map((c) => [c.id, c]));
   const R = window.ROUTE;
-  const PRI = getComputedStyle(document.documentElement).getPropertyValue('--pri').trim() || '#0f6e5a';
+  const PRI = getComputedStyle(document.documentElement).getPropertyValue('--pri').trim() || '#4E978D';
   let IT = [];
   const TABS = ['plan', 'ask', 'cards', 'phrases', 'sos'];
   const firstTab = (location.hash || '').slice(1);
