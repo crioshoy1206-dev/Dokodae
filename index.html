@@ -83,7 +83,10 @@ nav button.on{color:#fff;font-weight:700}
   #panel{left:0;right:0;bottom:calc(var(--navh) + env(safe-area-inset-bottom));height:calc(100% - var(--navh) - env(safe-area-inset-bottom) - env(safe-area-inset-top) - 54px);border-radius:16px 16px 0 0;transition:transform .28s cubic-bezier(.2,.8,.2,1);will-change:transform}
   #panel.dragging{transition:none}
   .leaflet-control-zoom{display:none}
-  .leaflet-bottom.leaflet-left{bottom:auto;top:calc(92px + env(safe-area-inset-top))}
+  .leaflet-bottom.leaflet-left{bottom:auto;top:calc(var(--tbh,108px) + 16px + env(safe-area-inset-top))}
+  #topbar{transition:opacity .15s}
+  body.sheetfull #topbar,body.sheetfull .leaflet-control-container{opacity:0;pointer-events:none}
+  body.sheetfull #topbar > *{pointer-events:none}
   .leaflet-control-attribution{font-size:9px;opacity:.8}
   /* 모바일 글자 크기 */
   html,body{font-size:14px;line-height:1.6}
@@ -225,14 +228,17 @@ textarea{resize:none}
 .tutc .ico{width:52px;height:52px;border-radius:16px;background:var(--pri-soft);color:var(--pri);display:grid;place-items:center;font-size:26px;margin-bottom:12px}
 .tutc h3{margin:0 0 6px;font-size:18px;word-break:keep-all}
 .tutc p{margin:0;color:var(--sub);font-size:14px;line-height:1.65;word-break:keep-all}
-.tutf{display:flex;align-items:center;justify-content:space-between;margin-top:18px;gap:8px}
+.tutc .dots{margin-top:16px}
+.tutf{display:flex;align-items:center;justify-content:space-between;margin-top:14px;gap:8px;flex-wrap:nowrap}
+.tutb{display:flex;gap:6px;flex:0 1 auto;min-width:0}
 .dots{display:flex;gap:6px}.dots i{width:7px;height:7px;border-radius:50%;background:var(--line)}.dots i.on{background:var(--pri);width:18px;border-radius:4px}
-.tutf .btn{min-width:84px;min-height:42px}
-.tutskip{border:0;background:none;color:var(--sub);font-size:13px;padding:8px}
+.tutf .btn{min-width:72px;min-height:42px;padding:9px 16px;white-space:nowrap}
+.tutskip{border:0;background:none;color:var(--sub);font-size:13px;padding:8px 4px;white-space:nowrap;flex:0 0 auto}
 /* ---------- 새 여행 ---------- */
 .newtrip label{display:block;font-size:13px;color:var(--sub);margin:10px 0 4px}
 .newtrip .two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .newtrip .two > div{min-width:0}
+@media (max-width:400px){.newtrip .two{grid-template-columns:1fr;gap:0}}
 .newtrip input[type=date]{width:100%;min-width:0;max-width:100%;display:block;-webkit-appearance:none;appearance:none;border:1px solid var(--line);background:var(--card);border-radius:10px;padding:10px 12px;font-size:16px}
 .acct{display:flex;align-items:center;gap:10px}
 .acct img{width:32px;height:32px;border-radius:50%}

@@ -3,6 +3,8 @@
   const $ = (s, el) => (el || document).querySelector(s);
   const view = $('#view');
   const panel = $('#panel');
+  // 지도 레이어 버튼이 날짜 칩 아래에 오도록 상단 바 높이를 CSS 변수로 넘겨요.
+  (function () { const tb = $('#topbar'); if (!tb) return; const f = () => document.documentElement.style.setProperty('--tbh', tb.offsetHeight + 'px'); f(); if (window.ResizeObserver) new ResizeObserver(f).observe(tb); })();
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   // 로그인한 사용자마다 저장 공간을 따로 써요
   const USER = window.DK_USER || null, OWNER = !!window.DK_OWNER && !!window.ROUTE;
@@ -152,7 +154,7 @@
     d.seq = seq;
     d.vis = seq.filter((i) => !d.stops[i].del);
   }
-  const numOf = (d, i) => d.vis.indexOf(i);
+  const numOf = (d, i) => d.vis.indexOf(i) + (d.start ? 0 : 1); // 출발점이 없는 일정은 1번부터
   function saveEdits() { store.set('edits', EDITS); R.DAYS.forEach(applyEdits); drawnDay = null; }
   R.DAYS.forEach((d) => { d.base = d.stops.map((x) => x.slice()); applyEdits(d); });
 
@@ -392,6 +394,7 @@
   function setSheet(state, keepMap) {
     if (isDesk()) { panel.style.transform = ''; return; }
     S.sheet = state;
+    document.body.classList.toggle('sheetfull', state === 'full');
     panel.style.transform = `translateY(${snapY(state)}px)`;
   }
   (function sheetDrag() {
@@ -641,8 +644,8 @@
     const draw = () => {
       const [ico, h, p] = TUT[k], last = k === TUT.length - 1;
       el.innerHTML = `<div class="tutc"><div class="ico">${ico}</div><h3>${esc(h)}</h3><p>${esc(p)}</p>
-        <div class="tutf"><div class="dots">${TUT.map((_, i) => `<i class="${i === k ? 'on' : ''}"></i>`).join('')}</div>
-        <div class="row" style="gap:4px">${last ? '' : '<button class="tutskip" data-t="skip">건너뛰기</button>'}${k ? '<button class="btn ghost" data-t="prev">이전</button>' : ''}<button class="btn" data-t="next">${last ? '시작하기' : '다음'}</button></div></div></div>`;
+        <div class="dots">${TUT.map((_, i) => `<i class="${i === k ? 'on' : ''}"></i>`).join('')}</div>
+        <div class="tutf">${last ? '<span></span>' : '<button class="tutskip" data-t="skip">건너뛰기</button>'}<div class="tutb">${k ? '<button class="btn ghost" data-t="prev">이전</button>' : ''}<button class="btn" data-t="next">${last ? '시작하기' : '다음'}</button></div></div></div>`;
     };
     el.addEventListener('click', (ev) => {
       const b = ev.target.closest('[data-t]'); if (!b) return; ev.stopPropagation();
