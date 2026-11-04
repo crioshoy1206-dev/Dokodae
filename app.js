@@ -2,6 +2,29 @@
   'use strict';
   const $ = (s, el) => (el || document).querySelector(s);
   const view = $('#view');
+
+  // ---------- 아이콘: 단색 선 아이콘 (글자색을 따라가요) ----------
+  const IC = {
+    train: '<rect x="5" y="3.5" width="14" height="13" rx="3"/><path d="M5 10h14M8.5 13.2h.01M15.5 13.2h.01M8.5 16.5 6.5 20.5M15.5 16.5l2 4"/>',
+    food: '<path d="M3.5 11.5h17a8.5 8.5 0 0 1-17 0z"/><path d="M8.5 20.5h7M13 3.5l-4 6M18.5 4l-6 6"/>',
+    torii: '<path d="M3 5c3 1.2 15 1.2 18 0M5 9.5h14M7 6.3V21M17 6.3V21M12 6.5v3"/>',
+    stay: '<rect x="5" y="3.5" width="14" height="17" rx="1.5"/><path d="M9 8h.01M12 8h.01M15 8h.01M9 12h.01M12 12h.01M15 12h.01M10.5 20.5v-4h3v4"/>',
+    sos: '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="3.5"/><path d="m6 6 3.5 3.5M18 6l-3.5 3.5M6 18l3.5-3.5M18 18l-3.5-3.5"/>',
+    compass: '<circle cx="12" cy="12" r="8.5"/><path d="m15.5 8.5-2 5-5 2 2-5z"/>',
+    speak: '<path d="M4 5h16v10.5h-9l-4.5 3.5v-3.5H4z"/><path d="M8 9h8M8 12h5"/>',
+    bulb: '<path d="M9.5 17.5h5M10.5 20.5h3M12 3.5a6 6 0 0 0-3.5 10.9v1.6h7v-1.6A6 6 0 0 0 12 3.5z"/>',
+    pin: '<path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/>',
+    map: '<path d="M3.5 6.5 9 4l6 2.5L20.5 4v13.5L15 20l-6-2.5-5.5 2.5z"/><path d="M9 4v13.5M15 6.5V20"/>',
+    edit: '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="m13.5 6.5 4 4"/>',
+    cal: '<rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4M8 14h3"/>',
+    tap: '<path d="M9.5 11.5V5a1.5 1.5 0 0 1 3 0v6m0-1a1.5 1.5 0 0 1 3 0v1.5m0-.5a1.5 1.5 0 0 1 3 0v3.5a6 6 0 0 1-6 6h-.8a6 6 0 0 1-4.9-2.6l-2-3a1.5 1.5 0 0 1 2.4-1.8l1.3 1.6"/>',
+    chat: '<path d="M5 5h14a1.5 1.5 0 0 1 1.5 1.5v9A1.5 1.5 0 0 1 19 17h-7l-4.5 3.5V17H5a1.5 1.5 0 0 1-1.5-1.5v-9A1.5 1.5 0 0 1 5 5z"/><path d="M8.5 11h.01M12 11h.01M15.5 11h.01"/>',
+    clip: '<rect x="5.5" y="4.5" width="13" height="16" rx="2"/><path d="M9 4.5v-1h6v1M9 10h6M9 13.5h6M9 17h3"/>',
+    camera: '<path d="M4 8h3.2l1.5-2.5h6.6L16.8 8H20v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
+    phone: '<path d="M5 4h4l1.5 4-2.5 1.5a11 11 0 0 0 6.5 6.5l1.5-2.5 4 1.5v4a1.5 1.5 0 0 1-1.6 1.5A16.5 16.5 0 0 1 3.5 5.6 1.5 1.5 0 0 1 5 4z"/>',
+    down: '<path d="m6 9 6 6 6-6"/>', up: '<path d="m6 15 6-6 6 6"/>'
+  };
+  const I = (n) => IC[n] ? `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${IC[n]}</svg>` : '';
   const panel = $('#panel');
   // 지도 레이어 버튼이 날짜 칩 아래에 오도록 상단 바 높이를 CSS 변수로 넘겨요.
   (function () { const tb = $('#topbar'); if (!tb) return; const f = () => document.documentElement.style.setProperty('--tbh', tb.offsetHeight + 'px'); f(); if (window.ResizeObserver) new ResizeObserver(f).observe(tb); })();
@@ -116,14 +139,14 @@
   R.DAYS.forEach((d, i) => {
     d.date = DATES[i];
     if (d.start) { d.stops.unshift(d.start); d.meals.forEach((m) => m.at++); R.PLANS[d.id] = R.PLANS[d.id].map((x) => (typeof x === 'number' ? x + 1 : x)); }
-    // 열차 구간은 그 직전 장소의 할 일 맨 위에 '🚃 타는 곳'으로
+    // 열차 구간은 그 직전 장소의 할 일 맨 위에 '타는 곳'으로
     d.rides = {}; let mx = 0;
     R.PLANS[d.id].forEach((it) => {
       if (typeof it === 'number') { mx = Math.max(mx, it); return; }
       const [key, a, b] = it, ln = R.LINES[key], x = R.RIDE[it.join('|')];
       if (!x) return;
       const n = seg(key, a, b).length - 1;
-      (d.rides[mx] = d.rides[mx] || []).push(`🚃 ${ln.n}: ${x[0]} → '${x[1]}' 방면 → ${x[2] || n + '정거장 → ' + b + ' 하차'}`);
+      (d.rides[mx] = d.rides[mx] || []).push(`${ln.n}: ${x[0]} → '${x[1]}' 방면 → ${x[2] || n + '정거장 → ' + b + ' 하차'}`);
     });
   });
   // ---------- 일정 편집 (이 기기에 저장) ----------
@@ -444,7 +467,7 @@
     document.body.appendChild(d);
   }
   function jaList(list) {
-    return list.map((p) => `<button class="tag" data-ja="${esc(p.ja)}" data-ko="${esc(p.ko)}" style="text-align:left">🇯🇵 ${esc(p.ja)}<br><span style="color:var(--sub)">${esc(p.ko)}</span></button>`).join('');
+    return list.map((p) => `<button class="tag" data-ja="${esc(p.ja)}" data-ko="${esc(p.ko)}" style="text-align:left">${I('speak')} ${esc(p.ja)}<br><span style="color:var(--sub)">${esc(p.ko)}</span></button>`).join('');
   }
   function cardTags(list) {
     return list.map((c) => `<button class="tag" data-card="${c.id}">${esc(c.title)}</button>`).join('');
@@ -452,7 +475,7 @@
   function cardBody(c) {
     return `<div class="muted">${esc(c.sum)}</div>
       <ol>${c.steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol>
-      ${c.tips.map((t) => `<div class="tip">💡 ${esc(t)}</div>`).join('')}
+      ${c.tips.map((t) => `<div class="tip">${I('bulb')} ${esc(t)}</div>`).join('')}
       ${c.ja.length ? `<div class="k" style="margin-top:10px">직원에게 보여주기 (누르면 크게)</div>${jaList(c.ja)}` : ''}
       ${c.verified === 'check' ? '<div style="margin-top:8px"><span class="chk">규정이 바뀔 수 있어요 · 현장 안내 우선</span></div>' : ''}
       <div class="row" style="margin-top:10px"><button class="btn ghost" data-askabout="${c.id}">이 상황 AI에게 더 묻기</button></div>`;
@@ -474,10 +497,10 @@
       <label>메모<input type="text" data-ed="m" value="${esc(x.m)}" placeholder="예: 입장권 미리 예매함"></label>
       <label>체크리스트 <span class="muted">(한 줄에 하나)</span><textarea data-ed="todo" rows="3" placeholder="예: 7번 출구로 나가기">${esc(x.todo)}</textarea></label>
       <div class="k" style="margin-top:8px">위치</div>
-      <div class="muted" style="margin:2px 0 6px">${x.lat != null ? `📍 지도에 표시돼요${x.place ? ' · ' + esc(x.place) : ''}` : '아직 위치가 없어요. 장소를 찾거나 지도에서 찍어 주세요.'}</div>
+      <div class="muted" style="margin:2px 0 6px">${x.lat != null ? `${I('pin')} 지도에 표시돼요${x.place ? ' · ' + esc(x.place) : ''}` : '아직 위치가 없어요. 장소를 찾거나 지도에서 찍어 주세요.'}</div>
       <div class="row" style="flex-wrap:nowrap"><input type="search" id="placeQ" value="${esc(E.q || '')}" placeholder="장소 검색 (예: 도쿄 스카이트리)" style="flex:1;min-width:0"><button class="btn ghost" id="placeGo">찾기</button></div>
       ${res ? `<div class="pres">${res.length ? res.map((r, k) => `<button class="pr" data-place="${k}"><b>${esc(r.name)}</b><small>${esc(r.addr)}</small></button>`).join('') : '<div class="muted">찾는 장소가 없어요. 다른 이름이나 일본어로 찾아보세요.</div>'}</div>` : ''}
-      <div class="row" style="margin-top:6px"><button class="btn ghost" id="pickMap">🗺 지도에서 찍기</button><button class="btn ghost" id="pickMe">◎ 내 위치</button>${x.lat != null && !orig ? '<button class="tag" id="clearLL">위치 빼기</button>' : ''}</div>
+      <div class="row" style="margin-top:6px"><button class="btn ghost" id="pickMap">${I('map')} 지도에서 찍기</button><button class="btn ghost" id="pickMe">◎ 내 위치</button>${x.lat != null && !orig ? '<button class="tag" id="clearLL">위치 빼기</button>' : ''}</div>
       <div class="row" style="margin-top:12px;justify-content:space-between"><div class="row"><button class="btn" id="edSave">저장</button><button class="btn ghost" id="edCancel">취소</button></div>${isNew ? '' : '<button class="btn danger" id="edDel">삭제</button>'}</div>
     </div>`;
   }
@@ -499,7 +522,7 @@
   function showDraft() {
     pickLayer.clearLayers();
     const x = S.edit && S.edit.draft; if (!x || x.lat == null) return;
-    L.marker([x.lat, x.lng], { icon: L.divIcon({ className: '', html: '<div class="pin draft">✎</div>', iconSize: [26, 26], iconAnchor: [13, 13] }), zIndexOffset: 2000 }).addTo(pickLayer);
+    L.marker([x.lat, x.lng], { icon: L.divIcon({ className: '', html: '<div class="pin draft">' + I('edit') + '</div>', iconSize: [26, 26], iconAnchor: [13, 13] }), zIndexOffset: 2000 }).addTo(pickLayer);
   }
   function saveEditor() {
     const d = dayOf(S.day), E = S.edit, x = E.draft;
@@ -569,7 +592,7 @@
         <div class="big">${esc(st.todo)}</div>
         ${st.board ? `<div class="det"><b>타는 곳</b> ${esc(st.board)}</div>` : ''}
         ${st.alight ? `<div class="det"><b>내리는 곳</b> ${esc(st.alight)}</div>` : ''}
-        ${st.memo ? `<div class="det">💡 ${esc(st.memo)}</div>` : ''}
+        ${st.memo ? `<div class="det">${I('bulb')} ${esc(st.memo)}</div>` : ''}
         <div>${cardTags(cardsForStep(st))}</div>
         ${cur && next ? `<div class="det" style="margin-top:8px"><b>다음</b> ${esc(next.s)} ${esc(next.todo)}</div>` : ''}
         <div class="row" style="margin-top:10px"><button class="btn" data-askstep="${IT.indexOf(st)}">여기서 막혔어요 → AI에게 묻기</button></div>
@@ -596,7 +619,7 @@
       if (S.edit && S.edit.i === i) return editorHTML(d) + mealsHTML(d, ml0);
       if (s.del) return (EM ? `<div class="stop gone"><span class="time">${esc(s[0])}</span><span class="num">–</span><span class="what"><b>${esc(s[1])}</b><small>지운 일정</small><button class="ebtn" data-restore="${i}">되살리기</button></span></div>` : '') + mealsHTML(d, ml0);
       const rides = d.rides[i] || [], todo = todoList(d, s);
-      const li = rides.map((t, k) => { const key = tdKey(d, s, 'r' + k); return `<li data-td="${esc(key)}" class="ride${tdGet(key) ? ' done' : ''}" role="checkbox" aria-checked="${tdGet(key)}">${esc(t)}</li>`; })
+      const li = rides.map((t, k) => { const key = tdKey(d, s, 'r' + k); return `<li data-td="${esc(key)}" class="ride${tdGet(key) ? ' done' : ''}" role="checkbox" aria-checked="${tdGet(key)}">${I('train')} ${esc(t)}</li>`; })
         .concat(todo.map((t, k) => { const key = tdKey(d, s, k); return `<li data-td="${esc(key)}" class="${tdGet(key) ? 'done' : ''}" role="checkbox" aria-checked="${tdGet(key)}">${esc(t)}</li>`; })).join('');
       const tags = cardsForText([s[1], s[2]].concat(rides, todo).join(' '), 2);
       const meals = mealsHTML(d, ml0), op = S.xp.has(i) || EM;
@@ -615,7 +638,7 @@
     const usedLines = [];
     R.PLANS[d.id].forEach((it) => { if (typeof it !== 'number' && !usedLines.includes(R.LINES[it[0]])) usedLines.push(R.LINES[it[0]]); });
     view.innerHTML = `${top}
-      <div class="dayhead"><div class="row" style="justify-content:space-between;flex-wrap:nowrap;align-items:flex-start"><h2>${esc(d.title)}</h2><button class="btn ${EM ? '' : 'ghost'} sm" id="editMode">${EM ? '편집 끝내기' : '✎ 일정 편집'}</button></div><div class="sub">${esc(d.sub)}</div></div>
+      <div class="dayhead"><div class="row" style="justify-content:space-between;flex-wrap:nowrap;align-items:flex-start"><h2>${esc(d.title)}</h2><button class="btn ${EM ? '' : 'ghost'} sm" id="editMode">${EM ? '편집 끝내기' : I('edit') + ' 일정 편집'}</button></div><div class="sub">${esc(d.sub)}</div></div>
       ${usedLines.length || d.meals.length ? `<div class="legend">${usedLines.map((l) => `<span><i style="width:16px;height:5px;border-radius:3px;background:${l.c};display:inline-block"></i>${esc(l.n)}</span>`).join('')}<span><i style="width:16px;border-top:3px dotted var(--c);display:inline-block"></i>도보</span><span style="color:var(--food)">◆ 맛집 후보</span></div>` : ''}
       <div>${stops}</div>
       ${S.edit && S.edit.i === 'new' ? editorHTML(d) : `<button class="addstop" id="addStop">＋ 이날 일정 추가</button>`}
@@ -631,11 +654,11 @@
 
   // ---------- 사용법 (처음 한 번) ----------
   const TUT = [
-    ['🗾', '도코데에 오신 걸 환영해요', '일본 여행 중에 일정, 동선, 막힐 때 도움을 한곳에서 볼 수 있어요. 처음이니 30초만 둘러볼게요.'],
-    ['🗓️', '1. 여행 만들기', '일정 탭에서 여행 이름과 날짜를 정하면 날짜별 빈 일정이 생겨요. 샘플 일정은 없어요. 처음부터 내 여행으로 채워요.'],
-    ['📍', '2. 장소 추가하기', '날짜를 고르고 "이날 일정 추가"를 눌러 장소를 검색해요. 넣은 순서와 시간대로 지도에 번호와 동선이 그려져요.'],
-    ['👆', '3. 장소를 누르면 할 일이 펼쳐져요', '평소에는 장소 이름만 보여요. 누르면 메모와 체크리스트가 펼쳐지고, 지도도 그 장소로 이동해요.'],
-    ['💬', '4. 막히면 바로 도움 받기', 'AI 묻기에 상황을 적거나 사진을 보내 보세요. 상황카드에는 교통·식당·숙소 대처법이, 긴급 탭에는 연락처가 있어요.']
+    ['map', '도코데에 오신 걸 환영해요', '일본 여행 중에 일정, 동선, 막힐 때 도움을 한곳에서 볼 수 있어요. 처음이니 30초만 둘러볼게요.'],
+    ['cal', '1. 여행 만들기', '일정 탭에서 여행 이름과 날짜를 정하면 날짜별 빈 일정이 생겨요. 샘플 일정은 없어요. 처음부터 내 여행으로 채워요.'],
+    ['pin', '2. 장소 추가하기', '날짜를 고르고 "이날 일정 추가"를 눌러 장소를 검색해요. 넣은 순서와 시간대로 지도에 번호와 동선이 그려져요.'],
+    ['tap', '3. 장소를 누르면 할 일이 펼쳐져요', '평소에는 장소 이름만 보여요. 누르면 메모와 체크리스트가 펼쳐지고, 지도도 그 장소로 이동해요.'],
+    ['chat', '4. 막히면 바로 도움 받기', 'AI 묻기에 상황을 적거나 사진을 보내 보세요. 상황카드에는 교통·식당·숙소 대처법이, 긴급 탭에는 연락처가 있어요.']
   ];
   function showTutorial() {
     let k = 0;
@@ -643,7 +666,7 @@
     const done = () => { store.set('tutDone', 1); el.remove(); };
     const draw = () => {
       const [ico, h, p] = TUT[k], last = k === TUT.length - 1;
-      el.innerHTML = `<div class="tutc"><div class="ico">${ico}</div><h3>${esc(h)}</h3><p>${esc(p)}</p>
+      el.innerHTML = `<div class="tutc"><div class="ico">${I(ico)}</div><h3>${esc(h)}</h3><p>${esc(p)}</p>
         <div class="dots">${TUT.map((_, i) => `<i class="${i === k ? 'on' : ''}"></i>`).join('')}</div>
         <div class="tutf">${last ? '<span></span>' : '<button class="tutskip" data-t="skip">건너뛰기</button>'}<div class="tutb">${k ? '<button class="btn ghost" data-t="prev">이전</button>' : ''}<button class="btn" data-t="next">${last ? '시작하기' : '다음'}</button></div></div></div>`;
     };
@@ -658,14 +681,14 @@
   }
 
   // ---------- 상황 카드 ----------
-  const seg2 = (on) => `<div class="seg"><button data-tab="cards" class="${on === 'cards' ? 'on' : ''}">🧭 상황카드</button><button data-tab="phrases" class="${on === 'phrases' ? 'on' : ''}">🇯🇵 보여주기 문장</button></div>`;
+  const seg2 = (on) => `<div class="seg"><button data-tab="cards" class="${on === 'cards' ? 'on' : ''}">${I('compass')} 상황카드</button><button data-tab="phrases" class="${on === 'phrases' ? 'on' : ''}">${I('speak')} 보여주기 문장</button></div>`;
   function renderCards() {
     const list = S.query ? searchCards(S.query, 30) : window.CARDS.filter((c) => S.cat === 'all' || c.cat === S.cat);
-    const chips = [{ id: 'all', name: '전체', icon: '' }, ...window.CATS].map((c) => `<button class="chip ${S.cat === c.id && !S.query ? 'on' : ''}" data-cat="${c.id}">${c.icon} ${esc(c.name)}</button>`).join('');
+    const chips = [{ id: 'all', name: '전체', icon: '' }, ...window.CATS].map((c) => `<button class="chip ${S.cat === c.id && !S.query ? 'on' : ''}" data-cat="${c.id}">${I(c.icon)} ${esc(c.name)}</button>`).join('');
     view.innerHTML = `${seg2('cards')}<input type="search" id="cq" placeholder="무슨 상황이에요? 예: 식권기, 환승, 온천" value="${esc(S.query)}">
       <div class="chips" style="margin-top:8px">${chips}</div>
       <div id="clist">${list.map((c) => `<div class="card" id="c-${c.id}">
-        <div class="row" data-toggle="${c.id}" style="justify-content:space-between;cursor:pointer;flex-wrap:nowrap"><div><div class="k">${window.CATS.find((x) => x.id === c.cat).icon} ${window.CATS.find((x) => x.id === c.cat).name}</div><b>${esc(c.title)}</b></div><span>${S.open === c.id ? '▲' : '▼'}</span></div>
+        <div class="row" data-toggle="${c.id}" style="justify-content:space-between;cursor:pointer;flex-wrap:nowrap"><div><div class="k">${I(window.CATS.find((x) => x.id === c.cat).icon)} ${window.CATS.find((x) => x.id === c.cat).name}</div><b>${esc(c.title)}</b></div><span class="cv">${I(S.open === c.id ? 'up' : 'down')}</span></div>
         ${S.open === c.id ? cardBody(c) : `<div class="muted" style="margin-top:4px">${esc(c.sum)}</div>`}
       </div>`).join('')}
       <div class="card"><div class="muted">찾는 상황이 없나요?</div><button class="btn" style="margin-top:8px" data-askq="1">AI에게 바로 묻기</button></div></div>`;
@@ -694,13 +717,13 @@
   }
   function fmt(text) {
     let h = esc(text).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
-    h = h.replace(/📋\s*직원에게 보여주기:?\s*\n?\s*(.+)/, (m, ja) => `<button class="tag" data-ja="${ja.replace(/"/g, '&quot;')}" style="font-size:16px">📋 직원에게 보여주기<br><span style="font-size:19px">${ja}</span></button>`);
+    h = h.replace(/📋\s*직원에게 보여주기:?\s*\n?\s*(.+)/, (m, ja) => `<button class="tag" data-ja="${ja.replace(/"/g, '&quot;')}" style="font-size:16px">${I('clip')} 직원에게 보여주기<br><span style="font-size:19px">${ja}</span></button>`);
     return h;
   }
   function renderAsk() {
     const msgs = S.chat.map((m, i) => `<div class="msg ${m.role === 'user' ? 'u' : 'a'}">${m.img ? `<img src="${m.img}" alt="">` : ''}${m.role === 'user' ? esc(m.content) : fmt(m.content)}${m.cards && m.cards.length ? (m.err && CARD[m.cards[0]] ? `<div style="margin-top:8px"><b>${esc(CARD[m.cards[0]].title)}</b>${cardBody(CARD[m.cards[0]])}${cardTags(m.cards.slice(1).map((id) => CARD[id]).filter(Boolean))}</div>` : `<div>${cardTags(m.cards.map((id) => CARD[id]).filter(Boolean))}</div>`) : ''}${m.role === 'assistant' && i === S.chat.length - 1 && !m.err ? `<div style="margin-top:8px"><button class="tag" data-human="1">AI 답으로 해결 안 됐어요</button></div>` : ''}</div>`).join('');
     view.innerHTML = `${S.chat.length ? '' : `<div class="card"><div class="big">현장에서 막히면 물어보세요</div>
-        <div class="muted">내 일정과 지금 시각을 알고 답해요. 안내판·메뉴·매표기 사진도 📷로 보낼 수 있어요.</div>
+        <div class="muted">내 일정과 지금 시각을 알고 답해요. 안내판·메뉴·매표기 사진도 카메라 버튼으로 보낼 수 있어요.</div>
         <div style="margin-top:8px">${['신주쿠역에서 오다큐선 어디로 가?', '식권기 버튼이 다 일본어야', '신사에서 사진 찍어도 돼?', '심야버스 승차장을 못 찾겠어'].map((q) => `<button class="tag" data-sample="${esc(q)}">${esc(q)}</button>`).join('')}</div></div>`}
       <div class="chat" id="chat">${msgs}${S.busy ? '<div class="typing">답을 찾는 중…</div>' : ''}</div>
       ${S.chat.length ? '<div style="text-align:center;margin-top:14px"><button class="tag" id="clearChat">대화 지우기</button></div>' : ''}
@@ -802,7 +825,7 @@
       ${window.EMERGENCY.map((e) => `<div class="card"><a class="tel" href="tel:${e.num.replace(/[^+\d]/g, '')}"><div><b>${esc(e.name)}</b><div class="muted">${esc(e.note)}${e.check ? ' <span class="chk">출발 전 번호 확인</span>' : ''}</div></div><span class="n">${esc(e.num)}</span></a></div>`).join('')}
       ${stay ? `<div class="card"><div class="k">오늘 숙소</div><b>${esc(stay.name)}</b>
         <div class="row" style="justify-content:space-between;margin-top:4px"><span class="ja" style="font-size:16px">${esc(stay.addr)}</span>${stay.addr && /[都府区]/.test(stay.addr) ? `<button class="tag" data-ja="${esc(stay.addr)}" data-ko="이 주소로 가 주세요 (この住所までお願いします)">택시에 보여주기</button>` : ''}</div>
-        ${stay.tel ? `<a class="tag" href="tel:${stay.tel.replace(/[^+\d]/g, '')}">📞 ${esc(stay.tel)}</a>` : ''}${stay.note ? `<div class="muted">${esc(stay.note)}</div>` : ''}</div>` : ''}
+        ${stay.tel ? `<a class="tag" href="tel:${stay.tel.replace(/[^+\d]/g, '')}">${I('phone')} ${esc(stay.tel)}</a>` : ''}${stay.note ? `<div class="muted">${esc(stay.note)}</div>` : ''}</div>` : ''}
       <div class="k" style="margin-top:14px">이럴 땐 이렇게</div>
       ${['lostthing', 'passport', 'sick', 'quake'].map((id) => `<button class="card" data-card="${id}" style="width:100%;text-align:left"><b>${esc(CARD[id].title)}</b><div class="muted">${esc(CARD[id].sum)}</div></button>`).join('')}
       ${unsolved.length ? `<div class="card"><div class="k">AI로 해결 못 한 질문 (${unsolved.length})</div>${unsolved.slice(-5).reverse().map((u) => `<div class="muted" style="margin-top:6px">• ${esc(u.q)}</div>`).join('')}<div class="muted" style="margin-top:6px">현지인·전문가 연결은 준비 중이에요. 이 목록은 이 휴대폰에만 저장돼요.</div></div>` : ''}`;

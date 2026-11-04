@@ -1,11 +1,11 @@
 // 상황 카드: 현장에서 자주 막히는 상황. 오프라인에서도 열림.
 // verified: 'basic' = 일반적으로 알려진 규칙(작성자 지식 기준), 'check' = 현장/공식 사이트에서 다시 확인 필요
 window.CATS = [
-  { id: 'move', name: '교통', icon: '🚃' },
-  { id: 'food', name: '식당', icon: '🍜' },
-  { id: 'manner', name: '예절', icon: '⛩️' },
-  { id: 'stay', name: '숙소·쇼핑', icon: '🏨' },
-  { id: 'sos', name: '문제 생김', icon: '🆘' }
+  { id: 'move', name: '교통', icon: 'train' },
+  { id: 'food', name: '식당', icon: 'food' },
+  { id: 'manner', name: '예절', icon: 'torii' },
+  { id: 'stay', name: '숙소·쇼핑', icon: 'stay' },
+  { id: 'sos', name: '문제 생김', icon: 'sos' }
 ];
 
 window.CARDS = [

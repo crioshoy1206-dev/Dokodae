@@ -1,4 +1,4 @@
-const V = 'th-v10';
+const V = 'th-v11';
 const FILES = ['/', '/index.html', '/boot.js', '/app.js', '/data/cards.js', '/manifest.json', '/icon-192.png', '/apple-touch-icon.png', '/favicon.png', '/fonts/gn-kill-gothic-ub-kana.woff2'];
 const TILES = 'th-tiles';
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(V).then((c) => c.addAll(FILES)).then(() => self.skipWaiting())); });
