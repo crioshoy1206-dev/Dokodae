@@ -30,6 +30,7 @@
     query: '',
     open: null,
     sel: null,
+    xp: new Set(),
     chat: store.get('chat', []),
     pendingImg: null,
     busy: false,
@@ -302,14 +303,18 @@
     map.fitBounds(L.latLngBounds(pts), Object.assign({ maxZoom: 17 }, pad()));
     const m = markers[`f${mi}_${pi}`]; if (m) m.openPopup();
   }
+  function setOpen(i, v) {
+    if (v) S.xp.add(i); else S.xp.delete(i);
+    const el = document.querySelector(`.stop[data-stop="${i}"]`); if (el) { el.classList.toggle('open', v); el.setAttribute('aria-expanded', v); }
+  }
   function selectStop(i, fromList) {
     const d = dayOf(S.day), s = d.stops[i];
+    if (fromList) setOpen(i, !S.xp.has(i)); else setOpen(i, true);
     S.sel = i;
     document.querySelectorAll('.stop.on').forEach((x) => x.classList.remove('on'));
     const el = document.querySelector(`.stop[data-stop="${i}"]`);
     if (el) { el.classList.add('on'); if (!fromList) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
     if (s[3] == null) { if (fromList) toast('위치가 없는 일정이에요. 일정 편집에서 위치를 넣을 수 있어요.'); return; }
-    if (fromList && !isDesk() && S.sheet === 'full') setSheet('half');
     focusLL(L.latLng(s[3], s[4]), 15);
     const m = markers['s' + i]; if (m) m.openPopup();
     if (!fromList && S.tab !== 'plan') go('plan');
@@ -532,14 +537,17 @@
       const li = rides.map((t, k) => { const key = tdKey(d, s, 'r' + k); return `<li data-td="${esc(key)}" class="ride${tdGet(key) ? ' done' : ''}" role="checkbox" aria-checked="${tdGet(key)}">${esc(t)}</li>`; })
         .concat(todo.map((t, k) => { const key = tdKey(d, s, k); return `<li data-td="${esc(key)}" class="${tdGet(key) ? 'done' : ''}" role="checkbox" aria-checked="${tdGet(key)}">${esc(t)}</li>`; })).join('');
       const tags = cardsForText([s[1], s[2]].concat(rides, todo).join(' '), 2);
-      const meals = mealsHTML(d, ml0);
-      return `<div class="stop${i === ci ? ' cur' : ''}${i === S.sel ? ' on' : ''}" data-stop="${i}">
+      const meals = mealsHTML(d, ml0), op = S.xp.has(i) || EM;
+      const nDo = rides.length + todo.length + ml0.length;
+      return `<div class="stop${i === ci ? ' cur' : ''}${i === S.sel ? ' on' : ''}${op ? ' open' : ''}" data-stop="${i}" aria-expanded="${op}">
         <span class="time">${esc(s[0])}</span>
         <span class="num${no ? (s[5] === 'm' ? ' move' : '') : ' start'}">${no}</span>
-        <span class="what">${EM ? `<button class="ebtn" data-edit="${i}">수정</button>` : ''}<b>${esc(s[1])}</b>${i === ci ? '<span class="nowtag">지금</span>' : ''}${s.custom != null ? '<span class="etag">추가함</span>' : s.edited ? '<span class="etag">수정함</span>' : ''}${s[3] == null ? '<span class="etag">위치 없음</span>' : ''}${s[2] ? `<small>${esc(s[2])}</small>` : ''}
+        <span class="what">${EM ? `<button class="ebtn" data-edit="${i}">수정</button>` : ''}<b>${esc(s[1])}</b>${i === ci ? '<span class="nowtag">지금</span>' : ''}${s.custom != null ? '<span class="etag">추가함</span>' : s.edited ? '<span class="etag">수정함</span>' : ''}${s[3] == null ? '<span class="etag">위치 없음</span>' : ''}${nDo || s[2] ? `<span class="chev" aria-hidden="true">${nDo ? nDo + ' ' : ''}▾</span>` : ''}
+</span>
+          <div class="sdet">${s[2] ? `<small class="memo">${esc(s[2])}</small>` : ''}
           ${li ? `<ul class="todo">${li}</ul>` : ''}
-          ${tags.length ? `<div class="stags">${cardTags(tags)}</div>` : ''}
-        </span></div>${meals}`;
+          ${tags.length ? `<div class="stags">${cardTags(tags)}</div>` : ''}</div>
+        </div>${meals ? `<div class="smeal">${meals}</div>` : ''}`;
     }).join('');
     const sim = store.get('sim', '');
     const usedLines = [];
@@ -732,7 +740,7 @@
     }
   }
   function setDay(date, fit) {
-    S.day = date; S.sel = null; drawnDay = null; closeEditor(); render(); view.scrollTop = 0;
+    S.day = date; S.sel = null; S.xp = new Set(); drawnDay = null; closeEditor(); render(); view.scrollTop = 0;
     if (fit === false) return;
   }
 
