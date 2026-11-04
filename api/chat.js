@@ -21,6 +21,9 @@ const SYSTEM_PHRASE = `사용자가 일본 현지 직원에게 보여줄 문장�
 module.exports = async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
+  // 구글 로그인이 설정돼 있으면 로그인한 사람만 AI를 쓸 수 있어요
+  const SS = require('./_session');
+  if (SS.configured() && !SS.read(req)) return res.status(401).json({ error: 'need_login', message: '로그인하면 AI에게 물어볼 수 있어요.' });
 
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) return res.status(503).json({ error: 'no_key', message: 'AI 키가 아직 설정되지 않았어요.' });

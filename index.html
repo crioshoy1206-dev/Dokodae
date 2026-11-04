@@ -207,6 +207,35 @@ textarea{resize:none}
 .btn.danger{background:var(--warn-soft);color:var(--warn)}
 .ebtn{float:right;margin:0 0 4px 8px;border:1px solid var(--line);background:var(--card);color:var(--pri);border-radius:6px;font-size:12px;font-weight:600;padding:3px 9px}
 .etag{display:inline-block;font-size:11px;color:var(--sub);border:1px solid var(--line);border-radius:5px;padding:0 5px;margin-left:6px;vertical-align:2px}
+/* ---------- 로그인 ---------- */
+#login{position:fixed;inset:0;z-index:2000;display:grid;place-items:center;padding:24px;background:linear-gradient(160deg,#e6f3f0 0%,var(--bg) 60%)}
+#login[hidden]{display:none}
+.lbox{width:100%;max-width:340px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:10px}
+.lbox img{border-radius:22px;box-shadow:0 8px 24px rgba(0,0,0,.12)}
+.lname{font-family:"GN Kill Gothic",-apple-system,sans-serif;font-size:30px;color:var(--pri);letter-spacing:.5px}
+.ltag{margin:0 0 10px;color:var(--sub);font-size:14px;line-height:1.6;word-break:keep-all}
+#gbtn{min-height:44px}
+.lmsg{min-height:1.4em;margin:0;color:var(--warn);font-size:13px}
+.lfine{margin:0;color:var(--sub);font-size:12px}
+/* ---------- 튜토리얼 ---------- */
+.tut{position:fixed;inset:0;z-index:1500;background:rgba(15,20,19,.55);display:grid;place-items:end center;padding:16px 16px calc(16px + env(safe-area-inset-bottom))}
+@media (min-width:600px){.tut{place-items:center}}
+.tutc{width:100%;max-width:400px;background:var(--card);border-radius:20px;padding:22px 20px 16px;box-shadow:0 12px 40px rgba(0,0,0,.25);animation:tutin .22s ease-out}
+@keyframes tutin{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+.tutc .ico{width:52px;height:52px;border-radius:16px;background:var(--pri-soft);color:var(--pri);display:grid;place-items:center;font-size:26px;margin-bottom:12px}
+.tutc h3{margin:0 0 6px;font-size:18px;word-break:keep-all}
+.tutc p{margin:0;color:var(--sub);font-size:14px;line-height:1.65;word-break:keep-all}
+.tutf{display:flex;align-items:center;justify-content:space-between;margin-top:18px;gap:8px}
+.dots{display:flex;gap:6px}.dots i{width:7px;height:7px;border-radius:50%;background:var(--line)}.dots i.on{background:var(--pri);width:18px;border-radius:4px}
+.tutf .btn{min-width:84px;min-height:42px}
+.tutskip{border:0;background:none;color:var(--sub);font-size:13px;padding:8px}
+/* ---------- 새 여행 ---------- */
+.newtrip label{display:block;font-size:13px;color:var(--sub);margin:10px 0 4px}
+.newtrip .two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.newtrip .two > div{min-width:0}
+.newtrip input[type=date]{width:100%;min-width:0;max-width:100%;display:block;-webkit-appearance:none;appearance:none;border:1px solid var(--line);background:var(--card);border-radius:10px;padding:10px 12px;font-size:16px}
+.acct{display:flex;align-items:center;gap:10px}
+.acct img{width:32px;height:32px;border-radius:50%}
 .stop.gone{opacity:.55;cursor:default}
 .stop .what{position:relative;padding-right:34px}
 .stop .chev{position:absolute;right:0;top:2px;font-size:12px;color:var(--sub);background:var(--pri-soft);border-radius:999px;padding:1px 8px;line-height:1.6;transition:transform .2s}
@@ -281,8 +310,16 @@ a.tel .n{font-size:16px;white-space:nowrap;flex:none;margin-left:10px;font-weigh
   <button data-tab="sos"><svg viewBox="0 0 24 24"><path d="M12 3.5 21 19.5H3z"/><path d="M12 10v4.5M12 17.2h.01"/></svg><span>긴급</span></button>
 </nav>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" crossorigin="anonymous"></script>
-<script src="/data/cards.js"></script>
-<script src="/data/route.js"></script>
-<script src="/app.js"></script>
+<div id="login" hidden>
+  <div class="lbox">
+    <img src="/icon-192.png" alt="" width="88" height="88">
+    <div class="lname">DokoDae</div>
+    <p class="ltag">일본 여행 현장에서 일정, 길 찾기, 막힐 때 도움까지 한곳에서.</p>
+    <div id="gbtn"></div>
+    <p id="loginMsg" class="lmsg"></p>
+    <p class="lfine">로그인하면 내 일정이 내 계정에 따로 저장돼요.</p>
+  </div>
+</div>
+<script src="/boot.js"></script>
 </body>
 </html>

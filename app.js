@@ -4,21 +4,41 @@
   const view = $('#view');
   const panel = $('#panel');
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  // 로그인한 사용자마다 저장 공간을 따로 써요
+  const USER = window.DK_USER || null, OWNER = !!window.DK_OWNER && !!window.ROUTE;
+  const NS = USER ? 'th.u.' + USER.id + '.' : 'th.';
   const store = {
-    get(k, d) { try { const v = localStorage.getItem('th.' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
-    set(k, v) { try { localStorage.setItem('th.' + k, JSON.stringify(v)); } catch (e) {} }
+    get(k, d) { try { const v = localStorage.getItem(NS + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+    set(k, v) { try { localStorage.setItem(NS + k, JSON.stringify(v)); } catch (e) {} }
   };
   const isDesk = () => window.matchMedia('(min-width:900px)').matches;
 
-  const TRIP_START = '2027-01-08', TRIP_END = '2027-01-14';
-  const DATES = ['2027-01-08', '2027-01-09', '2027-01-10', '2027-01-11', '2027-01-12', '2027-01-13', '2027-01-14'];
-  const STAYS = [
-    { from: '2027-01-08', to: '2027-01-11', name: '마루코우 호텔 아키하바라', addr: '東京都台東区台東1-28-8', tel: '+81-70-9199-5686' },
-    { from: '2027-01-11', to: '2027-01-12', name: '심야버스 (버스타 신주쿠 → OCAT 난바)', addr: '예약 메일의 승차장 확인', tel: '' },
-    { from: '2027-01-12', to: '2027-01-14', name: 'K HOTEL NAMBA', addr: '大阪市浪速区元町2-11-15', tel: '+81-6-7410-7986', note: '셀프 체크인 15:00~23:00, 체크아웃 10:00' }
-  ];
+  // ---------- 여행 데이터 ----------
+  // 주인 계정(OWNER_EMAILS)만 기존 일본 여행 일정을 받고, 다른 사용자는 빈 일정에서 직접 만들어요.
+  const WD = ['일', '월', '화', '수', '목', '금', '토'];
+  const dayRange = (a, b) => { const out = []; const d = new Date(a + 'T00:00:00Z'), e = new Date(b + 'T00:00:00Z'); while (d <= e && out.length < 31) { out.push(d.toISOString().slice(0, 10)); d.setUTCDate(d.getUTCDate() + 1); } return out; };
+  const md = (dt) => `${+dt.slice(5, 7)}/${+dt.slice(8, 10)}`;
+  const wd = (dt) => WD[new Date(dt + 'T00:00:00Z').getUTCDay()];
+  const UT = OWNER ? null : store.get('trip', null);
+  let TRIP_START, TRIP_END, DATES, STAYS, R;
+  if (OWNER) {
+    TRIP_START = '2027-01-08'; TRIP_END = '2027-01-14';
+    DATES = ['2027-01-08', '2027-01-09', '2027-01-10', '2027-01-11', '2027-01-12', '2027-01-13', '2027-01-14'];
+    STAYS = [
+      { from: '2027-01-08', to: '2027-01-11', name: '마루코우 호텔 아키하바라', addr: '東京都台東区台東1-28-8', tel: '+81-70-9199-5686' },
+      { from: '2027-01-11', to: '2027-01-12', name: '심야버스 (버스타 신주쿠 → OCAT 난바)', addr: '예약 메일의 승차장 확인', tel: '' },
+      { from: '2027-01-12', to: '2027-01-14', name: 'K HOTEL NAMBA', addr: '大阪市浪速区元町2-11-15', tel: '+81-6-7410-7986', note: '셀프 체크인 15:00~23:00, 체크아웃 10:00' }
+    ];
+    R = window.ROUTE;
+  } else {
+    DATES = UT ? dayRange(UT.start, UT.end) : [];
+    TRIP_START = DATES[0] || ''; TRIP_END = DATES[DATES.length - 1] || '';
+    STAYS = UT && UT.stay ? [{ from: TRIP_START, to: '9999-12-31', name: UT.stay, addr: UT.stayAddr || '', tel: '' }] : [];
+    R = { LINES: {}, RIDE: {}, TODO: {}, PLANS: {}, DAYS: DATES.map((dt, i) => ({ id: 'u' + dt, tab: `${md(dt)} ${wd(dt)}`, title: `${md(dt)} (${wd(dt)}) ${i + 1}일차`, sub: UT.title || '', stops: [], meals: [] })) };
+    R.DAYS.forEach((d) => { R.PLANS[d.id] = []; });
+  }
+  const stayOn = (day) => STAYS.find((s) => day >= s.from && day < s.to) || STAYS[STAYS.length - 1] || null;
   const CARD = Object.fromEntries(window.CARDS.map((c) => [c.id, c]));
-  const R = window.ROUTE;
   const PRI = getComputedStyle(document.documentElement).getPropertyValue('--pri').trim() || '#4E978D';
   let IT = [];
   const TABS = ['plan', 'ask', 'cards', 'phrases', 'sos'];
@@ -140,8 +160,8 @@
   const dayOf = (date) => R.DAYS.find((d) => d.date === date) || R.DAYS[0];
   const todoList = (d, s) => s.todo || (R.TODO[d.id] || {})[s.key || s[1]] || [];
   const tdKey = (d, s, k) => 'todo|' + d.id + '|' + (s.key || s[1]) + '|' + (s.todo ? 'e' : '') + k;
-  const tdGet = (k) => { try { return localStorage.getItem(k) === '1'; } catch (e) { return false; } };
-  const tdSet = (k, v) => { try { v ? localStorage.setItem(k, '1') : localStorage.removeItem(k); } catch (e) {} };
+  const tdGet = (k) => { try { return localStorage.getItem(NS + k) === '1'; } catch (e) { return false; } };
+  const tdSet = (k, v) => { try { v ? localStorage.setItem(NS + k, '1') : localStorage.removeItem(NS + k); } catch (e) {} };
   const gq = (q) => 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(q);
   function curStop(d, n) {
     if (n.d !== d.date) return -1;
@@ -151,7 +171,7 @@
   }
 
   // ---------- 지도 ----------
-  const map = L.map('map', { zoomControl: false, attributionControl: false });
+  const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([36.2, 138.3], 5);
   const syncLabels = () => document.getElementById('map').classList.toggle('low-zoom', map.getZoom() < 14);
   map.on('zoomend', syncLabels);
   L.control.attribution({ position: 'bottomleft', prefix: false }).addTo(map);
@@ -250,9 +270,23 @@
     drawnDay = d.id; layer.clearLayers(); pickLayer.clearLayers(); markers = {}; fitPts = [];
     const n = nowJST(), ci = curStop(d, n);
     let last = null;
-    const walk = (p) => { if (last && map.distance(last, p) > 40) walkLine(last, p, PRI, layer); };
-    R.PLANS[d.id].forEach((it) => {
-      if (typeof it === 'number') { const s = d.stops[it]; if (s.del) return; const p = L.latLng(s[3], s[4]); walk(p); last = p; return; }
+    // 가까우면 도보 경로, 멀면(2.5km 넘게) 이동 구간으로 곧게 이어요
+    const walk = (p) => {
+      if (!last) return; const dist = map.distance(last, p);
+      if (dist <= 40) return;
+      if (dist <= 2500) return walkLine(last, p, PRI, layer);
+      L.polyline([last, p], { color: PRI, weight: 4, opacity: 0.75, dashArray: '10 8', lineCap: 'round' }).addTo(layer)
+        .bindTooltip(`이동 · 약 ${(dist / 1000).toFixed(1)}km (교통수단은 일정에서 확인)`, { sticky: true });
+    };
+    // 동선 순서: 원래 동선(열차 구간 포함) 사이에 내가 추가한 일정을 시간 순서대로 끼워 넣어요
+    const P = R.PLANS[d.id] || [], nb = d.base.length, plan = []; let k = 0;
+    d.vis.forEach((i) => {
+      if (i < nb) { const at = P.indexOf(i, k); if (at >= 0) { plan.push(...P.slice(k, at + 1)); k = at + 1; } else plan.push(i); }
+      else plan.push(i);
+    });
+    plan.push(...P.slice(k).filter((x) => typeof x !== 'number'));
+    plan.forEach((it) => {
+      if (typeof it === 'number') { const s = d.stops[it]; if (!s || s.del || s[3] == null) return; const p = L.latLng(s[3], s[4]); walk(p); last = p; return; }
       const [key, a, b] = it, ln = R.LINES[key], part = seg(key, a, b), pts = part.map((x) => L.latLng(x[1], x[2]));
       walk(pts[0]);
       L.polyline(pts, { color: '#ffffff', weight: 9, opacity: 0.85 }).addTo(layer);
@@ -388,10 +422,12 @@
   // ---------- 공통 ----------
   function clock() {
     const n = nowJST();
+    if (!R.DAYS.length) { $('#clock').innerHTML = `일본 <b>${n.d.slice(5).replace('-', '/')} ${n.t}</b>`; $('#peek').innerHTML = '<b>새 여행 만들기</b> · 위로 올려서 시작해요'; return; }
     const dday = Math.round((Date.parse(TRIP_START) - Date.parse(n.d)) / 864e5);
     $('#clock').innerHTML = `일본 <b>${n.d.slice(5).replace('-', '/')} ${n.t}</b>` + (n.sim ? ' · 미리보기' : '') + (dday > 0 ? ` · D-${dday}` : '');
     const { cur, next } = findNow(n), st = cur || next;
-    $('#peek').innerHTML = inTrip(n) && st ? `<b>${cur ? '지금' : '다음'} ${esc(st.s)}</b> · ${esc(st.todo)}` : n.d < TRIP_START ? '<b>여행 전</b> · 위로 올려서 일정 보기' : '여행이 끝났어요';
+    const cs = !OWNER && inTrip(n) ? (() => { const dd = dayOf(n.d), i = curStop(dd, n); return i != null && dd.stops[i] ? dd.stops[i] : null; })() : null;
+    $('#peek').innerHTML = cs ? `<b>지금 ${esc(cs[0])}</b> · ${esc(cs[1])}` : inTrip(n) && st ? `<b>${cur ? '지금' : '다음'} ${esc(st.s)}</b> · ${esc(st.todo)}` : n.d < TRIP_START ? '<b>여행 전</b> · 위로 올려서 일정 보기' : '여행이 끝났어요';
   }
   function renderDays() {
     $('#days').innerHTML = R.DAYS.map((d) => `<button class="dchip ${d.date === S.day ? 'on' : ''}" data-day="${d.date}">${esc(d.tab)}</button>`).join('');
@@ -498,9 +534,29 @@
     if (S.edit) { renderPlan(); const el = $('#editor'); if (el) el.scrollIntoView({ block: 'nearest' }); }
   }
 
+  function acctHTML() {
+    const who = USER ? `<div class="acct">${USER.picture ? `<img src="${esc(USER.picture)}" alt="" referrerpolicy="no-referrer">` : ''}<div><b>${esc(USER.name)}</b><div class="muted">${esc(USER.email)}</div></div></div>`
+      : `<div class="muted">${window.DK_AUTH === 'off' ? '로그인 없이 이 기기에만 저장하고 있어요.' : '로그인 정보를 확인하지 못했어요 (오프라인).'}</div>`;
+    return `<div class="card"><div class="k">내 계정</div>${who}
+      <div class="row" style="margin-top:10px;gap:6px;flex-wrap:wrap"><button class="btn ghost sm" id="tutAgain">사용법 다시 보기</button>
+      ${!OWNER && UT ? '<button class="btn ghost sm" id="tripDel">이 여행 지우기</button>' : ''}
+      ${USER ? '<button class="btn ghost sm" id="logout">로그아웃</button>' : ''}</div></div>`;
+  }
+  function newTripHTML() {
+    const t = nowJST().d;
+    return `<div class="card newtrip"><div class="big">새 여행 만들기</div>
+      <div class="muted">여행 이름과 날짜를 정하면 날짜별로 빈 일정이 생겨요. 그다음 날짜마다 장소를 추가하면 지도에 동선이 그려져요.</div>
+      <label for="ntTitle">여행 이름</label><input type="text" id="ntTitle" maxlength="40" placeholder="예: 오사카 3박 4일">
+      <div class="two"><div><label for="ntStart">시작일</label><input type="date" id="ntStart" value="${t}"></div>
+      <div><label for="ntEnd">마지막 날</label><input type="date" id="ntEnd" value="${t}"></div></div>
+      <label for="ntStay">숙소 (선택)</label><input type="text" id="ntStay" maxlength="60" placeholder="예: 난바 OO 호텔">
+      <p class="lmsg" id="ntMsg"></p>
+      <button class="btn" id="tripMake" style="width:100%;margin-top:4px">여행 만들기</button></div>`;
+  }
   function renderPlan() {
     const n = nowJST();
     const d = dayOf(S.day);
+    if (!d) { view.innerHTML = newTripHTML() + acctHTML(); return; }
     const { cur, next } = findNow(n);
     let top = '';
     if (inTrip(n) && (cur || next)) {
@@ -515,6 +571,9 @@
         ${cur && next ? `<div class="det" style="margin-top:8px"><b>다음</b> ${esc(next.s)} ${esc(next.todo)}</div>` : ''}
         <div class="row" style="margin-top:10px"><button class="btn" data-askstep="${IT.indexOf(st)}">여기서 막혔어요 → AI에게 묻기</button></div>
       </div>`;
+    } else if (n.d < TRIP_START && !OWNER) {
+      const dd = Math.round((Date.parse(TRIP_START) - Date.parse(n.d)) / 864e5);
+      top = `<div class="card"><div class="k">여행 전 · D-${dd}</div><div class="muted">여행 중에는 지금 시각에 맞는 장소가 '지금'으로 표시돼요. 장소를 누르면 할 일이 펼쳐져요.</div></div>`;
     } else if (n.d < TRIP_START) {
       top = `<div class="card"><div class="k">여행 전</div><div style="font-weight:600;margin:2px 0 4px">여행이 시작되면 여기에 "지금 할 일"이 떠요</div>
         <div class="muted">미리 써 보려면 여행 중 시간으로 바꿔 보세요.</div>
@@ -554,17 +613,45 @@
     R.PLANS[d.id].forEach((it) => { if (typeof it !== 'number' && !usedLines.includes(R.LINES[it[0]])) usedLines.push(R.LINES[it[0]]); });
     view.innerHTML = `${top}
       <div class="dayhead"><div class="row" style="justify-content:space-between;flex-wrap:nowrap;align-items:flex-start"><h2>${esc(d.title)}</h2><button class="btn ${EM ? '' : 'ghost'} sm" id="editMode">${EM ? '편집 끝내기' : '✎ 일정 편집'}</button></div><div class="sub">${esc(d.sub)}</div></div>
-      <div class="legend">${usedLines.map((l) => `<span><i style="width:16px;height:5px;border-radius:3px;background:${l.c};display:inline-block"></i>${esc(l.n)}</span>`).join('')}<span><i style="width:16px;border-top:3px dotted var(--c);display:inline-block"></i>도보</span><span style="color:var(--food)">◆ 맛집 후보</span></div>
+      ${usedLines.length || d.meals.length ? `<div class="legend">${usedLines.map((l) => `<span><i style="width:16px;height:5px;border-radius:3px;background:${l.c};display:inline-block"></i>${esc(l.n)}</span>`).join('')}<span><i style="width:16px;border-top:3px dotted var(--c);display:inline-block"></i>도보</span><span style="color:var(--food)">◆ 맛집 후보</span></div>` : ''}
       <div>${stops}</div>
       ${S.edit && S.edit.i === 'new' ? editorHTML(d) : `<button class="addstop" id="addStop">＋ 이날 일정 추가</button>`}
       ${EM && hasEdits(d) ? `<div style="text-align:center;margin:6px 0 4px"><button class="tag" id="resetDay">이날 일정 원래대로 되돌리기</button></div>` : ''}
       ${EM ? `<div class="muted" style="margin:4px 2px 0">고친 일정은 이 기기에만 저장돼요.</div>` : ''}
       <div class="card"><div class="k">설정</div>
         <div class="muted" style="margin:6px 0">미리보기 시간 (비워 두면 실제 일본 시각)</div>
-        <div class="row"><input type="datetime-local" id="simIn" value="${esc(sim)}" min="2027-01-08T00:00" max="2027-01-14T23:59" style="flex:1"><button class="btn ghost" id="simClear">실제 시각</button></div>
+        <div class="row"><input type="datetime-local" id="simIn" value="${esc(sim)}" min="${TRIP_START}T00:00" max="${TRIP_END}T23:59" style="flex:1"><button class="btn ghost" id="simClear">실제 시각</button></div>
         <div class="muted" style="margin:10px 0 6px">AI 접근 코드 (받은 경우에만)</div>
         <input type="text" id="codeIn" value="${esc(store.get('code', ''))}" placeholder="없으면 비워 두세요">
-      </div>`;
+      </div>${acctHTML()}`;
+  }
+
+  // ---------- 사용법 (처음 한 번) ----------
+  const TUT = [
+    ['🗾', '도코데에 오신 걸 환영해요', '일본 여행 중에 일정, 동선, 막힐 때 도움을 한곳에서 볼 수 있어요. 처음이니 30초만 둘러볼게요.'],
+    ['🗓️', '1. 여행 만들기', '일정 탭에서 여행 이름과 날짜를 정하면 날짜별 빈 일정이 생겨요. 샘플 일정은 없어요. 처음부터 내 여행으로 채워요.'],
+    ['📍', '2. 장소 추가하기', '날짜를 고르고 "이날 일정 추가"를 눌러 장소를 검색해요. 넣은 순서와 시간대로 지도에 번호와 동선이 그려져요.'],
+    ['👆', '3. 장소를 누르면 할 일이 펼쳐져요', '평소에는 장소 이름만 보여요. 누르면 메모와 체크리스트가 펼쳐지고, 지도도 그 장소로 이동해요.'],
+    ['💬', '4. 막히면 바로 도움 받기', 'AI 묻기에 상황을 적거나 사진을 보내 보세요. 상황카드에는 교통·식당·숙소 대처법이, 긴급 탭에는 연락처가 있어요.']
+  ];
+  function showTutorial() {
+    let k = 0;
+    const el = document.createElement('div'); el.className = 'tut'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true');
+    const done = () => { store.set('tutDone', 1); el.remove(); };
+    const draw = () => {
+      const [ico, h, p] = TUT[k], last = k === TUT.length - 1;
+      el.innerHTML = `<div class="tutc"><div class="ico">${ico}</div><h3>${esc(h)}</h3><p>${esc(p)}</p>
+        <div class="tutf"><div class="dots">${TUT.map((_, i) => `<i class="${i === k ? 'on' : ''}"></i>`).join('')}</div>
+        <div class="row" style="gap:4px">${last ? '' : '<button class="tutskip" data-t="skip">건너뛰기</button>'}${k ? '<button class="btn ghost" data-t="prev">이전</button>' : ''}<button class="btn" data-t="next">${last ? '시작하기' : '다음'}</button></div></div></div>`;
+    };
+    el.addEventListener('click', (ev) => {
+      const b = ev.target.closest('[data-t]'); if (!b) return; ev.stopPropagation();
+      if (b.dataset.t === 'skip') return done();
+      if (b.dataset.t === 'prev') { k = Math.max(0, k - 1); return draw(); }
+      if (k === TUT.length - 1) { done(); if (!R.DAYS.length) { go('plan'); if (!isDesk()) setSheet('full'); } return; }
+      k++; draw();
+    });
+    draw(); document.body.appendChild(el);
   }
 
   // ---------- 상황 카드 ----------
@@ -588,17 +675,17 @@
     const day = inTrip(n) ? n.d : (S.day || TRIP_START);
     const line = (x) => `${x.s}-${x.e} ${x.place} | ${x.todo}${x.board ? ' | 타는곳: ' + x.board : ''}${x.alight ? ' | 내리는곳: ' + x.alight : ''}${x.memo ? ' | 메모: ' + x.memo : ''}`;
     const todays = IT.filter((x) => x.d === day).map(line).join('\n');
-    const stay = STAYS.find((s) => day >= s.from && day < s.to) || STAYS[STAYS.length - 1];
+    const stay = stayOn(day);
     const cards = searchCards(q, 3);
     let ctx = `[지금 시각] 일본 ${n.d} ${n.t}${inTrip(n) ? '' : ' (아직 여행 전이라 사용자가 미리 물어보는 중일 수 있음)'}\n`;
-    ctx += `[여행] 남자 2명, 2027-01-08~14 도쿄(아키하바라 숙소)→가마쿠라 당일→심야버스→오사카(난바 숙소). 교통: Suica, 도쿄 서브웨이 티켓 48h(1/9 14시~1/11 14시), 오다큐 에노시마·가마쿠라 프리패스(1/11), 오사카 엔조이 에코카드(1/12).\n`;
-    ctx += `[오늘 숙소] ${stay.name} ${stay.addr} ${stay.tel}\n`;
+    ctx += OWNER ? `[여행] 남자 2명, 2027-01-08~14 도쿄(아키하바라 숙소)→가마쿠라 당일→심야버스→오사카(난바 숙소). 교통: Suica, 도쿄 서브웨이 티켓 48h(1/9 14시~1/11 14시), 오다큐 에노시마·가마쿠라 프리패스(1/11), 오사카 엔조이 에코카드(1/12).\n` : `[여행] ${UT ? `${UT.title || '일본 여행'} ${TRIP_START}~${TRIP_END}` : '아직 여행 일정을 만들지 않음'}\n`;
+    if (stay) ctx += `[오늘 숙소] ${stay.name} ${stay.addr} ${stay.tel}\n`;
     if (meMarker) { const ll = meMarker.getLatLng(); ctx += `[내 위치] 위도 ${ll.lat.toFixed(4)}, 경도 ${ll.lng.toFixed(4)}\n`; }
     if (cur) ctx += `[지금 단계] ${line(cur)}\n`;
     if (next) ctx += `[다음 단계] ${line(next)}\n`;
     ctx += `[내 일정 ${day}]\n${todays}\n`;
     const dd = dayOf(day);
-    if (hasEdits(dd)) ctx += `[사용자가 직접 고친 이날 동선 (위 일정보다 이것을 우선)]\n${dd.vis.map((i) => { const s = dd.stops[i]; return `${s[0]} ${s[1]}${s[2] ? ' - ' + s[2] : ''}${todoList(dd, s).length ? ' | 할 일: ' + todoList(dd, s).join(' / ') : ''}`; }).join('\n')}\n`;
+    if (dd && hasEdits(dd)) ctx += `[사용자가 직접 고친 이날 동선 (위 일정보다 이것을 우선)]\n${dd.vis.map((i) => { const s = dd.stops[i]; return `${s[0]} ${s[1]}${s[2] ? ' - ' + s[2] : ''}${todoList(dd, s).length ? ' | 할 일: ' + todoList(dd, s).join(' / ') : ''}`; }).join('\n')}\n`;
     if (cards.length) ctx += `[관련 상황 카드]\n` + cards.map((c) => `# ${c.title}\n${c.sum}\n${c.steps.map((s, i) => `${i + 1}. ${s}`).join('\n')}${c.tips.length ? '\n팁: ' + c.tips.join(' ') : ''}`).join('\n\n');
     return ctx;
   }
@@ -706,13 +793,13 @@
   function renderSos() {
     const n = nowJST();
     const d = inTrip(n) ? n.d : TRIP_START;
-    const stay = STAYS.find((s) => d >= s.from && d < s.to) || STAYS[STAYS.length - 1];
+    const stay = stayOn(d);
     const unsolved = store.get('unsolved', []);
     view.innerHTML = `<div class="card sosbar"><b>위급하면 바로 전화하세요.</b> 일본은 경찰 110, 구급·소방 119예요.</div>
       ${window.EMERGENCY.map((e) => `<div class="card"><a class="tel" href="tel:${e.num.replace(/[^+\d]/g, '')}"><div><b>${esc(e.name)}</b><div class="muted">${esc(e.note)}${e.check ? ' <span class="chk">출발 전 번호 확인</span>' : ''}</div></div><span class="n">${esc(e.num)}</span></a></div>`).join('')}
-      <div class="card"><div class="k">오늘 숙소</div><b>${esc(stay.name)}</b>
+      ${stay ? `<div class="card"><div class="k">오늘 숙소</div><b>${esc(stay.name)}</b>
         <div class="row" style="justify-content:space-between;margin-top:4px"><span class="ja" style="font-size:16px">${esc(stay.addr)}</span>${stay.addr && /[都府区]/.test(stay.addr) ? `<button class="tag" data-ja="${esc(stay.addr)}" data-ko="이 주소로 가 주세요 (この住所までお願いします)">택시에 보여주기</button>` : ''}</div>
-        ${stay.tel ? `<a class="tag" href="tel:${stay.tel.replace(/[^+\d]/g, '')}">📞 ${esc(stay.tel)}</a>` : ''}${stay.note ? `<div class="muted">${esc(stay.note)}</div>` : ''}</div>
+        ${stay.tel ? `<a class="tag" href="tel:${stay.tel.replace(/[^+\d]/g, '')}">📞 ${esc(stay.tel)}</a>` : ''}${stay.note ? `<div class="muted">${esc(stay.note)}</div>` : ''}</div>` : ''}
       <div class="k" style="margin-top:14px">이럴 땐 이렇게</div>
       ${['lostthing', 'passport', 'sick', 'quake'].map((id) => `<button class="card" data-card="${id}" style="width:100%;text-align:left"><b>${esc(CARD[id].title)}</b><div class="muted">${esc(CARD[id].sum)}</div></button>`).join('')}
       ${unsolved.length ? `<div class="card"><div class="k">AI로 해결 못 한 질문 (${unsolved.length})</div>${unsolved.slice(-5).reverse().map((u) => `<div class="muted" style="margin-top:6px">• ${esc(u.q)}</div>`).join('')}<div class="muted" style="margin-top:6px">현지인·전문가 연결은 준비 중이에요. 이 목록은 이 휴대폰에만 저장돼요.</div></div>` : ''}`;
@@ -724,7 +811,8 @@
     document.querySelectorAll('nav button').forEach((b) => b.classList.toggle('on', b.dataset.tab === navTab));
     $('#composer').classList.toggle('hide', S.tab !== 'ask');
     const d = dayOf(S.day);
-    if (drawnDay !== d.id) drawDay(d);
+    if (d && drawnDay !== d.id) drawDay(d);
+    if (!d && drawnDay !== 'none') { drawnDay = 'none'; layer.clearLayers(); pickLayer.clearLayers(); markers = {}; fitPts = []; }
     renderDays();
     ({ plan: renderPlan, cards: renderCards, ask: renderAsk, phrases: renderPhrases, sos: renderSos }[S.tab] || renderPlan)();
     clock();
@@ -771,6 +859,22 @@
       S.edit.results = null; renderPlan(); showDraft(); focusLL(L.latLng(r.lat, r.lng), 16); return;
     }
     if (d.stop != null) { if (S.edit) return; return selectStop(+d.stop, true); }
+    if (t.id === 'tutAgain') return showTutorial();
+    if (t.id === 'logout') { fetch('/api/me', { method: 'POST' }).catch(() => {}).finally(() => { try { localStorage.removeItem('th.lastUser'); } catch (e) {} location.reload(); }); return; }
+    if (t.id === 'tripDel') {
+      if (!confirm('이 여행의 날짜와 내가 넣은 일정을 모두 지울까요? 되돌릴 수 없어요.')) return;
+      try { Object.keys(localStorage).filter((k) => k.startsWith(NS + 'todo|') || ['trip', 'edits', 'sim'].some((x) => k === NS + x)).forEach((k) => localStorage.removeItem(k)); } catch (e) {}
+      return location.reload();
+    }
+    if (t.id === 'tripMake') {
+      const title = $('#ntTitle').value.trim(), a = $('#ntStart').value, b = $('#ntEnd').value, stay = $('#ntStay').value.trim(), msg = $('#ntMsg');
+      if (!a || !b) { msg.textContent = '시작일과 마지막 날을 골라 주세요.'; return; }
+      if (b < a) { msg.textContent = '마지막 날이 시작일보다 빨라요.'; return; }
+      if (dayRange(a, b).length > 30) { msg.textContent = '여행은 30일까지 만들 수 있어요.'; return; }
+      store.set('trip', { title: title || '일본 여행', start: a, end: b, stay, created: Date.now() });
+      store.set('edits', {});
+      return location.reload();
+    }
     if (t.id === 'editMode') { S.editMode = !S.editMode; if (!S.editMode) closeEditor(); return renderPlan(); }
     if (t.id === 'addStop') return openEditor('new');
     if (t.id === 'edCancel') { closeEditor(); return renderPlan(); }
@@ -843,9 +947,11 @@
   // 시작
   const n0 = nowJST();
   S.day = inTrip(n0) ? n0.d : TRIP_START;
-  setSheet(isDesk() ? 'full' : 'peek');
+  if (!R.DAYS.length && !isDesk()) S.sheet = 'full';
+  setSheet(isDesk() ? 'full' : R.DAYS.length ? 'peek' : 'full');
   render();
-  fetch('/data/itinerary.json').then((r) => r.json()).then((d) => { IT = d; render(); }).catch(() => {});
+  if (OWNER) fetch('/data/itinerary.json').then((r) => r.json()).then((d) => { IT = d; render(); }).catch(() => {});
+  if (!store.get('tutDone', 0)) setTimeout(showTutorial, 400);
   if (store.get('geo', false) && navigator.permissions) navigator.permissions.query({ name: 'geolocation' }).then((p) => { if (p.state === 'granted') startGeo(false); }).catch(() => {});
   setInterval(() => {
     clock();
