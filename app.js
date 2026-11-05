@@ -604,6 +604,13 @@
       ${!OWNER && UT ? `<button class="btn ghost sm" id="tripDel">${CL && CL.role === 'edit' ? '이 여행 닫기' : '이 여행 지우기'}</button>` : ''}
       ${USER ? '<button class="btn ghost sm" id="logout">로그아웃</button>' : ''}</div></div>`;
   }
+  const saveErr = (e) => {
+    const c = (e && e.code) || '';
+    return (c === 'permission-denied' ? '서버가 저장을 거절했어요. Firestore 보안 규칙이 게시됐는지 확인해 주세요.'
+      : c === 'not-found' || c === 'failed-precondition' ? 'Firestore 데이터베이스를 찾지 못했어요. 데이터베이스가 만들어졌는지 확인해 주세요.'
+      : c === 'unavailable' ? '서버에 연결하지 못했어요. 인터넷 연결을 확인해 주세요.'
+      : '저장하지 못했어요.') + (c ? ' [' + c + ']' : '');
+  };
   async function loadTripList() {
     const el = $('#tripList'); if (!el || el.dataset.done) return;
     el.dataset.done = '1';
@@ -706,7 +713,7 @@
       edits['u' + d.date] = { mod: {}, del: [], add: d.stops.map((s) => ({ id: (Date.now() + n++).toString(36), t: s.t, n: s.n, m: s.m, todo: s.todo, lat: s.lat, lng: s.lng })) };
     });
     const nt = { title: p.title, start: p.start, end: p.end, stay: p.stay, created: Date.now(), via: 'ai' };
-    if (CL) return CL.create(nt, edits).then(() => { localStorage.setItem(NS + 'trip', JSON.stringify(nt)); localStorage.setItem(NS + 'edits', JSON.stringify(edits)); location.reload(); }).catch(() => toast('저장하지 못했어요. 인터넷 연결을 확인해 주세요.'));
+    if (CL) return CL.create(nt, edits).then(() => { localStorage.setItem(NS + 'trip', JSON.stringify(nt)); localStorage.setItem(NS + 'edits', JSON.stringify(edits)); location.reload(); }).catch((e) => toast(saveErr(e)));
     store.set('trip', nt);
     store.set('edits', edits);
     location.reload();
@@ -1053,7 +1060,7 @@
       if (b < a) { msg.textContent = '마지막 날이 시작일보다 빨라요.'; return; }
       if (dayRange(a, b).length > 30) { msg.textContent = '여행은 30일까지 만들 수 있어요.'; return; }
       const nt = { title: title || '일본 여행', start: a, end: b, stay, created: Date.now() };
-      if (CL) { t.disabled = true; return CL.create(nt, {}).then(() => { localStorage.setItem(NS + 'trip', JSON.stringify(nt)); localStorage.setItem(NS + 'edits', '{}'); location.reload(); }).catch(() => { t.disabled = false; msg.textContent = '저장하지 못했어요. 인터넷 연결을 확인해 주세요.'; }); }
+      if (CL) { t.disabled = true; return CL.create(nt, {}).then(() => { localStorage.setItem(NS + 'trip', JSON.stringify(nt)); localStorage.setItem(NS + 'edits', '{}'); location.reload(); }).catch((e) => { t.disabled = false; msg.textContent = saveErr(e); }); }
       store.set('trip', nt);
       store.set('edits', {});
       return location.reload();
