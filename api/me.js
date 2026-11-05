@@ -7,5 +7,5 @@ module.exports = async function handler(req, res) {
   if (!S.configured()) return res.status(200).json({ configured: false, user: null });
   const u = S.read(req);
   const user = u ? { id: u.id, email: u.email, name: u.name, picture: u.picture } : null;
-  return res.status(200).json({ configured: true, clientId: process.env.GOOGLE_CLIENT_ID, user, owner: !!u && S.isOwner(u.email) });
+  return res.status(200).json({ configured: true, firebase: S.fbConfig(), clientId: S.fbConfig() ? null : process.env.GOOGLE_CLIENT_ID, user, owner: !!u && S.isOwner(u.email) });
 };

@@ -41,10 +41,12 @@
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   // 로그인한 사용자마다 저장 공간을 따로 써요
   const USER = window.DK_USER || null, OWNER = !!window.DK_OWNER && !!window.ROUTE;
-  const NS = USER ? 'th.u.' + USER.id + '.' : 'th.';
+  const NS = window.DK_NS || (USER ? 'th.u.' + USER.id + '.' : 'th.');
+  const CL = window.DK_CLOUD && window.DK_CLOUD.user && !window.DK_OWNER ? window.DK_CLOUD : null; // 서버 저장(Firebase) 사용 중
+  const VIEW = window.DK_AUTH === 'view' || !!(CL && CL.readonly); // 보기 링크로 열어 읽기만 하는 중
   const store = {
     get(k, d) { try { const v = localStorage.getItem(NS + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
-    set(k, v) { try { localStorage.setItem(NS + k, JSON.stringify(v)); } catch (e) {} }
+    set(k, v) { try { localStorage.setItem(NS + k, JSON.stringify(v)); } catch (e) {} if (CL && (k === 'edits' || k === 'trip')) CL.save(k, v); }
   };
   const isDesk = () => window.matchMedia('(min-width:900px)').matches;
 
@@ -162,6 +164,13 @@
   // ---------- 일정 편집 (이 기기에 저장) ----------
   // EDITS[dayId] = { mod: {원래순번: {t,n,m,todo,lat,lng}}, del: [원래순번], add: [{id,t,n,m,todo,lat,lng}] }
   let EDITS = store.get('edits', {});
+  // 같이 편집하는 사람이 고친 내용을 바로 반영해요
+  if (window.DK_CLOUD) window.DK_CLOUD.onRemote((trip, edits) => {
+    try { localStorage.setItem(NS + 'trip', JSON.stringify(trip)); localStorage.setItem(NS + 'edits', JSON.stringify(edits)); } catch (e) {}
+    if (!UT || trip.start !== UT.start || trip.end !== UT.end) return location.reload();
+    EDITS = edits; R.DAYS.forEach(applyEdits); drawnDay = null; if (!S.edit) render();
+    toast('함께 편집하는 사람이 일정을 고쳤어요.');
+  });
   const edOf = (d) => { const e = EDITS[d.id] = EDITS[d.id] || {}; e.mod = e.mod || {}; e.del = e.del || []; e.add = e.add || []; return e; };
   const hasEdits = (d) => { const e = EDITS[d.id]; return !!e && (Object.keys(e.mod || {}).length + (e.del || []).length + (e.add || []).length > 0); };
   function applyEdits(d) {
@@ -573,12 +582,46 @@
   }
 
   function acctHTML() {
+    if (VIEW) {
+      return `<div class="card"><div class="k">공유받은 여행</div><div class="muted">보기 전용으로 열었어요. 로그인하면 내 여행을 만들고, 이 여행을 함께 편집하도록 초대받을 수 있어요.</div>
+        <div class="row" style="margin-top:10px;gap:6px"><a class="btn sm" href="/">내 여행 만들기</a><button class="btn ghost sm" id="tutAgain">사용법 보기</button></div></div>`;
+    }
     const who = USER ? `<div class="acct">${USER.picture ? `<img src="${esc(USER.picture)}" alt="" referrerpolicy="no-referrer">` : ''}<div><b>${esc(USER.name)}</b><div class="muted">${esc(USER.email)}</div></div></div>`
       : `<div class="muted">${window.DK_AUTH === 'off' ? '로그인 없이 이 기기에만 저장하고 있어요.' : '로그인 정보를 확인하지 못했어요 (오프라인).'}</div>`;
-    return `<div class="card"><div class="k">내 계정</div>${who}
+    const share = CL && CL.tripId && UT ? `<div class="card"><div class="k">${I('chat')} 여행 공유</div>
+      <div class="muted">같이 가는 사람에게 링크를 보내요. 함께 편집하는 사람이 고친 내용은 바로 서로에게 보여요.</div>
+      <div class="row" style="margin-top:10px;gap:6px">
+        <button class="btn sm" id="shareEdit">${I('edit')} 같이 편집 초대 링크</button>
+        ${CL.role === 'owner' ? `<button class="btn ghost sm" id="shareView">${I('map')} 보기 전용 링크</button>` : ''}
+        ${CL.role === 'owner' && CL.trip && CL.trip.public ? '<button class="tutskip" id="shareStop">보기 링크 끄기</button>' : ''}
+      </div>
+      <div class="muted" style="margin-top:8px">함께하는 사람: ${Object.values((CL.trip && CL.trip.members) || {}).map((m) => esc(m.name || '이름 없음')).join(', ')}</div></div>` : '';
+    const trips = CL ? `<div class="card"><div class="k">내 여행</div><div id="tripList" class="muted">불러오는 중…</div>
+      ${UT ? '<button class="btn ghost sm" id="tripNew" style="margin-top:8px">＋ 새 여행</button>' : ''}</div>` : '';
+    if (CL) setTimeout(loadTripList, 0);
+    return `${share}${trips}<div class="card"><div class="k">내 계정</div>${who}
       <div class="row" style="margin-top:10px;gap:6px;flex-wrap:wrap"><button class="btn ghost sm" id="tutAgain">사용법 다시 보기</button>
-      ${!OWNER && UT ? '<button class="btn ghost sm" id="tripDel">이 여행 지우기</button>' : ''}
+      ${!OWNER && UT ? `<button class="btn ghost sm" id="tripDel">${CL && CL.role === 'edit' ? '이 여행 닫기' : '이 여행 지우기'}</button>` : ''}
       ${USER ? '<button class="btn ghost sm" id="logout">로그아웃</button>' : ''}</div></div>`;
+  }
+  async function loadTripList() {
+    const el = $('#tripList'); if (!el || el.dataset.done) return;
+    el.dataset.done = '1';
+    try {
+      const ls = await CL.list();
+      const box = $('#tripList'); if (!box) return;
+      box.innerHTML = ls.length ? ls.map((t) => `<button class="tripitem${t.id === CL.tripId ? ' on' : ''}" data-trip="${esc(t.id)}"><b>${esc(t.title)}</b><span>${esc(t.start)} ~ ${esc(t.end)}${t.memberIds.length > 1 ? ` · ${t.memberIds.length}명` : ''}</span></button>`).join('')
+        : '아직 서버에 저장된 여행이 없어요.';
+    } catch (e) { const box = $('#tripList'); if (box) box.textContent = '여행 목록을 불러오지 못했어요.'; }
+  }
+  async function shareOut(kind) {
+    try {
+      const url = await CL.shareLink(kind);
+      const text = kind === 'edit' ? `도코데에서 "${UT.title}" 일정을 같이 편집해요` : `도코데 "${UT.title}" 일정이에요`;
+      if (navigator.share) { try { await navigator.share({ title: 'DokoDae', text, url }); return; } catch (e) { if (e && e.name === 'AbortError') return; } }
+      await navigator.clipboard.writeText(url); toast('링크를 복사했어요. 카톡에 붙여 넣어 보내세요.');
+    } catch (e) { toast('링크를 만들지 못했어요. 인터넷 연결을 확인해 주세요.'); }
+    if (kind === 'view') renderPlan();
   }
   // ---------- AI 일정 가져오기 ----------
   function importHTML() {
@@ -662,7 +705,9 @@
     p.days.forEach((d) => {
       edits['u' + d.date] = { mod: {}, del: [], add: d.stops.map((s) => ({ id: (Date.now() + n++).toString(36), t: s.t, n: s.n, m: s.m, todo: s.todo, lat: s.lat, lng: s.lng })) };
     });
-    store.set('trip', { title: p.title, start: p.start, end: p.end, stay: p.stay, created: Date.now(), via: 'ai' });
+    const nt = { title: p.title, start: p.start, end: p.end, stay: p.stay, created: Date.now(), via: 'ai' };
+    if (CL) return CL.create(nt, edits).then(() => { localStorage.setItem(NS + 'trip', JSON.stringify(nt)); localStorage.setItem(NS + 'edits', JSON.stringify(edits)); location.reload(); }).catch(() => toast('저장하지 못했어요. 인터넷 연결을 확인해 주세요.'));
+    store.set('trip', nt);
     store.set('edits', edits);
     location.reload();
   }
@@ -736,12 +781,12 @@
     const usedLines = [];
     R.PLANS[d.id].forEach((it) => { if (typeof it !== 'number' && !usedLines.includes(R.LINES[it[0]])) usedLines.push(R.LINES[it[0]]); });
     view.innerHTML = `${top}
-      <div class="dayhead"><div class="row" style="justify-content:space-between;flex-wrap:nowrap;align-items:flex-start"><h2>${esc(d.title)}</h2><button class="btn ${EM ? '' : 'ghost'} sm" id="editMode">${EM ? '편집 끝내기' : I('edit') + ' 일정 편집'}</button></div><div class="sub">${esc(d.sub)}</div></div>
+      <div class="dayhead"><div class="row" style="justify-content:space-between;flex-wrap:nowrap;align-items:flex-start"><h2>${esc(d.title)}</h2>${VIEW ? '' : `<button class="btn ${EM ? '' : 'ghost'} sm" id="editMode">${EM ? '편집 끝내기' : I('edit') + ' 일정 편집'}</button>`}</div><div class="sub">${esc(d.sub)}</div></div>
       ${usedLines.length || d.meals.length ? `<div class="legend">${usedLines.map((l) => `<span><i style="width:16px;height:5px;border-radius:3px;background:${l.c};display:inline-block"></i>${esc(l.n)}</span>`).join('')}<span><i style="width:16px;border-top:3px dotted var(--c);display:inline-block"></i>도보</span><span style="color:var(--food)">◆ 맛집 후보</span></div>` : ''}
       <div>${stops}</div>
-      ${S.edit && S.edit.i === 'new' ? editorHTML(d) : `<button class="addstop" id="addStop">＋ 이날 일정 추가</button>`}
+      ${VIEW ? '' : S.edit && S.edit.i === 'new' ? editorHTML(d) : `<button class="addstop" id="addStop">＋ 이날 일정 추가</button>`}
       ${EM && hasEdits(d) ? `<div style="text-align:center;margin:6px 0 4px"><button class="tag" id="resetDay">이날 일정 원래대로 되돌리기</button></div>` : ''}
-      ${EM ? `<div class="muted" style="margin:4px 2px 0">고친 일정은 이 기기에만 저장돼요.</div>` : ''}
+      ${EM ? `<div class="muted" style="margin:4px 2px 0">${CL ? '고친 일정은 내 계정에 저장되고, 함께 편집하는 사람에게도 바로 보여요.' : '고친 일정은 이 기기에만 저장돼요.'}</div>` : ''}
       <div class="card"><div class="k">설정</div>
         <div class="muted" style="margin:6px 0">미리보기 시간 (비워 두면 실제 일본 시각)</div>
         <div class="row"><input type="datetime-local" id="simIn" value="${esc(sim)}" min="${TRIP_START}T00:00" max="${TRIP_END}T23:59" style="flex:1"><button class="btn ghost" id="simClear">실제 시각</button></div>
@@ -956,7 +1001,7 @@
     if (fit === false) return;
   }
 
-  document.addEventListener('click', (ev) => {
+  document.addEventListener('click', async (ev) => {
     const td = ev.target.closest('[data-td]');
     if (td) { const v = !td.classList.contains('done'); td.classList.toggle('done', v); td.setAttribute('aria-checked', v); tdSet(td.dataset.td, v); return; }
     if (ev.target.closest('a')) return;
@@ -984,12 +1029,20 @@
     }
     if (d.stop != null) { if (S.edit) return; return selectStop(+d.stop, true); }
     if (t.id === 'tutAgain') return showTutorial();
-    if (t.id === 'logout') { fetch('/api/me', { method: 'POST' }).catch(() => {}).finally(() => { try { localStorage.removeItem('th.lastUser'); } catch (e) {} location.reload(); }); return; }
+    if (t.id === 'logout') { Promise.all([window.DK_CLOUD ? window.DK_CLOUD.signOut() : null, fetch('/api/me', { method: 'POST' })]).catch(() => {}).finally(() => { try { localStorage.removeItem('th.lastUser'); } catch (e) {} location.reload(); }); return; }
     if (t.id === 'tripDel') {
-      if (!confirm('이 여행의 날짜와 내가 넣은 일정을 모두 지울까요? 되돌릴 수 없어요.')) return;
+      if (CL && CL.role === 'edit') { if (!confirm('이 여행을 내 화면에서 닫을까요? 다른 사람의 일정은 그대로 남아요.')) return; CL.close(); }
+      else if (!confirm(CL && CL.trip && CL.trip.memberIds.length > 1 ? '이 여행을 지울까요? 함께 편집하는 사람에게서도 사라지고, 되돌릴 수 없어요.' : '이 여행의 날짜와 내가 넣은 일정을 모두 지울까요? 되돌릴 수 없어요.')) return;
+      else if (CL) { try { await CL.remove(); } catch (e) { return toast('지우지 못했어요. 인터넷 연결을 확인해 주세요.'); } }
       try { Object.keys(localStorage).filter((k) => k.startsWith(NS + 'todo|') || ['trip', 'edits', 'sim'].some((x) => k === NS + x)).forEach((k) => localStorage.removeItem(k)); } catch (e) {}
       return location.reload();
     }
+    if (t.id === 'shareEdit') return shareOut('edit');
+    if (t.id === 'shareView') return shareOut('view');
+    if (t.id === 'shareStop') { CL.stopPublic().then(() => { toast('보기 링크를 껐어요.'); renderPlan(); }).catch(() => toast('끄지 못했어요.')); return; }
+    if (t.id === 'tripNew') { CL.close(); try { localStorage.removeItem(NS + 'trip'); localStorage.removeItem(NS + 'edits'); } catch (e) {} return location.reload(); }
+    const ti = t.closest && t.closest('[data-trip]');
+    if (ti) { CL.switchTo(ti.dataset.trip); return location.reload(); }
     if (t.id === 'impGo') return runImport();
     if (t.id === 'impSave') return saveImport();
     if (t.id === 'impBack') { S.imp.plan = null; return renderPlan(); }
@@ -999,7 +1052,9 @@
       if (!a || !b) { msg.textContent = '시작일과 마지막 날을 골라 주세요.'; return; }
       if (b < a) { msg.textContent = '마지막 날이 시작일보다 빨라요.'; return; }
       if (dayRange(a, b).length > 30) { msg.textContent = '여행은 30일까지 만들 수 있어요.'; return; }
-      store.set('trip', { title: title || '일본 여행', start: a, end: b, stay, created: Date.now() });
+      const nt = { title: title || '일본 여행', start: a, end: b, stay, created: Date.now() };
+      if (CL) { t.disabled = true; return CL.create(nt, {}).then(() => { localStorage.setItem(NS + 'trip', JSON.stringify(nt)); localStorage.setItem(NS + 'edits', '{}'); location.reload(); }).catch(() => { t.disabled = false; msg.textContent = '저장하지 못했어요. 인터넷 연결을 확인해 주세요.'; }); }
+      store.set('trip', nt);
       store.set('edits', {});
       return location.reload();
     }

@@ -1,0 +1,48 @@
+rules_version = '2';
+// 도코데 Firestore 보안 규칙
+// trips/{tripId}: 여행 하나. 함께 편집하는 사람은 memberIds 에 들어 있어요.
+//  - 멤버: 읽기·내용 고치기
+//  - 만든 사람(owner): 공유 설정 바꾸기, 지우기
+//  - 보기 링크(public == true): 링크(문서 ID)를 아는 사람은 로그인 없이 읽기만
+//  - 편집 초대 링크: editKey 를 아는 로그인 사용자가 자기 자신을 멤버로 추가
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function isMember() { return signedIn() && request.auth.uid in resource.data.memberIds; }
+    function isOwner() { return signedIn() && resource.data.owner == request.auth.uid; }
+    function changed() { return request.resource.data.diff(resource.data).affectedKeys(); }
+
+    match /trips/{tripId} {
+      // 목록 조회는 내 여행만 (memberIds array-contains 내 uid 로 질의)
+      allow list: if signedIn() && request.auth.uid in resource.data.memberIds;
+      allow get: if isMember() || resource.data.public == true;
+
+      allow create: if signedIn()
+        && request.resource.data.owner == request.auth.uid
+        && request.resource.data.memberIds == [request.auth.uid]
+        && request.resource.data.editKey is string && request.resource.data.editKey.size() >= 16
+        && request.resource.data.editsJson is string && request.resource.data.editsJson.size() < 600000;
+
+      // 멤버는 일정 내용만 고칠 수 있어요
+      allow update: if isMember()
+        && changed().hasOnly(['title', 'start', 'end', 'stay', 'editsJson', 'updatedAt', 'updatedBy'])
+        && request.resource.data.editsJson.size() < 600000;
+
+      // 만든 사람은 공유 설정까지 바꿀 수 있어요 (멤버 내보내기 포함, 자기 자신은 빼지 못해요)
+      allow update: if isOwner()
+        && !changed().hasAny(['owner'])
+        && request.auth.uid in request.resource.data.memberIds
+        && request.resource.data.editKey is string && request.resource.data.editKey.size() >= 16;
+
+      // 편집 초대 링크로 들어오기: 맞는 editKey 를 joinKey 로 함께 보내고, 자기 uid 하나만 추가
+      allow update: if signedIn()
+        && changed().hasOnly(['memberIds', 'members', 'joinKey'])
+        && request.resource.data.joinKey == resource.data.editKey
+        && request.resource.data.memberIds.hasAll(resource.data.memberIds)
+        && request.resource.data.memberIds.removeAll(resource.data.memberIds).hasOnly([request.auth.uid])
+        && request.resource.data.members.diff(resource.data.members).affectedKeys().hasOnly([request.auth.uid]);
+
+      allow delete: if isOwner();
+    }
+  }
+}

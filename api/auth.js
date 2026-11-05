@@ -6,6 +6,19 @@ module.exports = async function handler(req, res) {
   if (!S.configured()) return res.status(503).json({ error: 'not_configured', message: '로그인 설정이 아직 안 됐어요.' });
   let body = req.body;
   if (typeof body === 'string') { try { body = JSON.parse(body); } catch (e) { body = {}; } }
+  // Firebase 로그인: 브라우저가 받은 Firebase ID 토큰을 확인해요
+  if (body && body.idToken) {
+    try {
+      const u = await S.verifyFirebaseToken(String(body.idToken).slice(0, 4096));
+      if (!u) return res.status(401).json({ error: 'invalid_token', message: '로그인을 확인하지 못했어요.' });
+      const user = { id: u.uid, email: u.email, name: u.name, picture: u.picture };
+      S.issue(res, user);
+      return res.status(200).json({ user, owner: S.isOwner(user.email) });
+    } catch (e) {
+      console.error(e);
+      return res.status(502).json({ error: 'upstream', message: '로그인 확인 서버에 연결하지 못했어요. 잠시 뒤 다시 해 주세요.' });
+    }
+  }
   const credential = body && body.credential;
   if (!credential || typeof credential !== 'string' || credential.length > 4096) return res.status(400).json({ error: 'bad_request' });
   try {
