@@ -15,11 +15,10 @@
 
   function start(user, owner, mode) {
     window.DK_USER = user || null;
-    window.DK_OWNER = !!owner;
+    window.DK_OWNER = false; // 모든 사용자를 똑같이 다뤄요 (예전 주인 전용 일정 모드는 쓰지 않아요)
     window.DK_AUTH = mode; // 'google' | 'off' | 'view'
     const box = $('#login'); if (box) box.hidden = true;
     const files = ['/data/cards.js'];
-    if (owner) files.push('/data/route.js');
     files.push('/app.js');
     load(files).catch((e) => { $('#view').innerHTML = '<div class="card">앱을 불러오지 못했어요. 인터넷 연결 후 다시 열어 주세요. (' + e.message + ')</div>'; });
   }
@@ -111,7 +110,6 @@
     }
     remember(user, owner);
     const ns = 'th.u.' + u.uid + '.';
-    if (owner) return start(user, owner, 'google'); // 원래 일정(route.js)을 쓰는 주인 모드는 이 기기 저장 그대로
     try {
       if (P.t && P.j) await C.join(P.t, P.j).catch((e) => console.warn('join', e));
       let id = P.t || C.getCur();
