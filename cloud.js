@@ -47,6 +47,7 @@
   async function open(id) {
     const s = await F.getDoc(tripRef(id));
     if (!s.exists()) return null;
+    await detach();
     const t = s.data();
     st.tripId = id; st.trip = t; st.lastJson = t.editsJson;
     st.role = user && (t.memberIds || []).includes(user.uid) ? (t.owner === user.uid ? 'owner' : 'edit') : 'view';
@@ -89,10 +90,16 @@
   }
   async function stopPublic() { await F.updateDoc(tripRef(st.tripId), { public: false }); st.trip.public = false; }
   async function remove() {
-    if (st.role === 'owner') await F.deleteDoc(tripRef(st.tripId));
-    setCur(null);
+    if (st.role === 'owner') { clearTimeout(st.timer); st.pending = null; if (st.unsub) { st.unsub(); st.unsub = null; } await F.deleteDoc(tripRef(st.tripId)); }
+    close();
   }
-  function close() { setCur(null); }
+  // 지금 열린 여행에서 손을 떼요: 남은 저장을 마치고, 실시간 반영을 끊어요
+  async function detach() {
+    clearTimeout(st.timer); await flush();
+    if (st.unsub) { st.unsub(); st.unsub = null; }
+    st.tripId = null; st.role = null; st.trip = null; st.lastJson = null;
+  }
+  function close() { setCur(null); detach(); }
   function switchTo(id) { setCur(id); }
 
   window.DK_CLOUD = {

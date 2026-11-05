@@ -43,7 +43,7 @@
   const USER = window.DK_USER || null, OWNER = !!window.DK_OWNER && !!window.ROUTE;
   const NS = window.DK_NS || (USER ? 'th.u.' + USER.id + '.' : 'th.');
   const CL = window.DK_CLOUD && window.DK_CLOUD.user && !window.DK_OWNER ? window.DK_CLOUD : null; // 서버 저장(Firebase) 사용 중
-  const VIEW = window.DK_AUTH === 'view' || !!(CL && CL.readonly); // 보기 링크로 열어 읽기만 하는 중
+  let VIEW = window.DK_AUTH === 'view' || !!(CL && CL.readonly); // 보기 링크로 열어 읽기만 하는 중
   const store = {
     get(k, d) { try { const v = localStorage.getItem(NS + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
     set(k, v) { try { localStorage.setItem(NS + k, JSON.stringify(v)); } catch (e) {} if (CL && (k === 'edits' || k === 'trip')) CL.save(k, v); }
@@ -56,8 +56,10 @@
   const dayRange = (a, b) => { const out = []; const d = new Date(a + 'T00:00:00Z'), e = new Date(b + 'T00:00:00Z'); while (d <= e && out.length < 31) { out.push(d.toISOString().slice(0, 10)); d.setUTCDate(d.getUTCDate() + 1); } return out; };
   const md = (dt) => `${+dt.slice(5, 7)}/${+dt.slice(8, 10)}`;
   const wd = (dt) => WD[new Date(dt + 'T00:00:00Z').getUTCDay()];
-  const UT = OWNER ? null : store.get('trip', null);
-  let TRIP_START, TRIP_END, DATES, STAYS, R;
+  let UT, TRIP_START, TRIP_END, DATES, STAYS, R;
+  // 여행을 바꾸거나 새로 만들 때 새로고침 없이 다시 불러요
+  function setupTrip() {
+  UT = OWNER ? null : store.get('trip', null);
   if (OWNER) {
     TRIP_START = '2027-01-08'; TRIP_END = '2027-01-14';
     DATES = ['2027-01-08', '2027-01-09', '2027-01-10', '2027-01-11', '2027-01-12', '2027-01-13', '2027-01-14'];
@@ -73,6 +75,7 @@
     STAYS = UT && UT.stay ? [{ from: TRIP_START, to: '9999-12-31', name: UT.stay, addr: UT.stayAddr || '', tel: '' }] : [];
     R = { LINES: {}, RIDE: {}, TODO: {}, PLANS: {}, DAYS: DATES.map((dt, i) => ({ id: 'u' + dt, tab: `${md(dt)} ${wd(dt)}`, title: `${md(dt)} (${wd(dt)}) ${i + 1}일차`, sub: UT.title || '', stops: [], meals: [] })) };
     R.DAYS.forEach((d) => { R.PLANS[d.id] = []; });
+  }
   }
   const stayOn = (day) => STAYS.find((s) => day >= s.from && day < s.to) || STAYS[STAYS.length - 1] || null;
   const CARD = Object.fromEntries(window.CARDS.map((c) => [c.id, c]));
@@ -148,6 +151,7 @@
 
   // ---------- 동선 데이터 정리 (기존 동선 지도와 같은 규칙) ----------
   const seg = (key, a, b) => { const st = R.LINES[key].s, i = st.findIndex((x) => x[0] === a), j = st.findIndex((x) => x[0] === b); return i <= j ? st.slice(i, j + 1) : st.slice(j, i + 1).reverse(); };
+  function setupRides() {
   R.DAYS.forEach((d, i) => {
     d.date = DATES[i];
     if (d.start) { d.stops.unshift(d.start); d.meals.forEach((m) => m.at++); R.PLANS[d.id] = R.PLANS[d.id].map((x) => (typeof x === 'number' ? x + 1 : x)); }
@@ -161,14 +165,15 @@
       (d.rides[mx] = d.rides[mx] || []).push(`${ln.n}: ${x[0]} → '${x[1]}' 방면 → ${x[2] || n + '정거장 → ' + b + ' 하차'}`);
     });
   });
+  }
   // ---------- 일정 편집 (이 기기에 저장) ----------
   // EDITS[dayId] = { mod: {원래순번: {t,n,m,todo,lat,lng}}, del: [원래순번], add: [{id,t,n,m,todo,lat,lng}] }
-  let EDITS = store.get('edits', {});
+  let EDITS = {};
   // 같이 편집하는 사람이 고친 내용을 바로 반영해요
   if (window.DK_CLOUD) window.DK_CLOUD.onRemote((trip, edits) => {
     try { localStorage.setItem(NS + 'trip', JSON.stringify(trip)); localStorage.setItem(NS + 'edits', JSON.stringify(edits)); } catch (e) {}
-    if (!UT || trip.start !== UT.start || trip.end !== UT.end) return location.reload();
-    EDITS = edits; R.DAYS.forEach(applyEdits); drawnDay = null; if (!S.edit) render();
+    if (!UT || trip.start !== UT.start || trip.end !== UT.end) { if (!S.edit) reopenTrip(); }
+    else { EDITS = edits; R.DAYS.forEach(applyEdits); drawnDay = null; if (!S.edit) render(); }
     toast('함께 편집하는 사람이 일정을 고쳤어요.');
   });
   const edOf = (d) => { const e = EDITS[d.id] = EDITS[d.id] || {}; e.mod = e.mod || {}; e.del = e.del || []; e.add = e.add || []; return e; };
@@ -198,7 +203,11 @@
   }
   const numOf = (d, i) => d.vis.indexOf(i) + (d.start ? 0 : 1); // 출발점이 없는 일정은 1번부터
   function saveEdits() { store.set('edits', EDITS); R.DAYS.forEach(applyEdits); drawnDay = null; }
-  R.DAYS.forEach((d) => { d.base = d.stops.map((x) => x.slice()); applyEdits(d); });
+  function loadTrip() {
+    setupTrip(); setupRides(); EDITS = store.get('edits', {});
+    R.DAYS.forEach((d) => { d.base = d.stops.map((x) => x.slice()); applyEdits(d); });
+  }
+  loadTrip();
 
   const FAR = new Set(['나리타공항', '간사이공항 T1', '에노덴 후지사와역']);
   const dayOf = (date) => R.DAYS.find((d) => d.date === date) || R.DAYS[0];
@@ -713,10 +722,10 @@
       edits['u' + d.date] = { mod: {}, del: [], add: d.stops.map((s) => ({ id: (Date.now() + n++).toString(36), t: s.t, n: s.n, m: s.m, todo: s.todo, lat: s.lat, lng: s.lng })) };
     });
     const nt = { title: p.title, start: p.start, end: p.end, stay: p.stay, created: Date.now(), via: 'ai' };
-    if (CL) return CL.create(nt, edits).then(() => { localStorage.setItem(NS + 'trip', JSON.stringify(nt)); localStorage.setItem(NS + 'edits', JSON.stringify(edits)); location.reload(); }).catch((e) => toast(saveErr(e)));
+    if (CL) return CL.create(nt, edits).then(openTrip).then(() => toast('여행을 만들었어요.')).catch((e) => toast(saveErr(e)));
     store.set('trip', nt);
     store.set('edits', edits);
-    location.reload();
+    reopenTrip();
   }
   function newTripHTML() {
     const t = nowJST().d;
@@ -982,6 +991,23 @@
   }
 
   // ---------- 라우팅 ----------
+  // 다른 여행으로 바꾸기 (새로고침 없이)
+  function reopenTrip() {
+    loadTrip();
+    VIEW = window.DK_AUTH === 'view' || !!(CL && CL.readonly);
+    const n = nowJST();
+    S.day = inTrip(n) ? n.d : TRIP_START; S.sel = null; S.open = null; S.xp = new Set(); S.imp = null; S.editMode = false;
+    closeEditor(); drawnDay = null;
+    S.tab = 'plan'; history.replaceState(null, '', '#plan');
+    setSheet(isDesk() ? 'full' : R.DAYS.length ? 'peek' : 'full');
+    render(); view.scrollTop = 0;
+  }
+  async function openTrip(id) {
+    const o = await CL.open(id);
+    if (!o) throw new Error('not-found');
+    try { localStorage.setItem(NS + 'trip', JSON.stringify(o.trip)); localStorage.setItem(NS + 'edits', JSON.stringify(o.edits)); } catch (e) {}
+    reopenTrip();
+  }
   function render() {
     const navTab = S.tab === 'phrases' ? 'cards' : S.tab;
     document.querySelectorAll('nav button').forEach((b) => b.classList.toggle('on', b.dataset.tab === navTab));
@@ -1042,14 +1068,14 @@
       else if (!confirm(CL && CL.trip && CL.trip.memberIds.length > 1 ? '이 여행을 지울까요? 함께 편집하는 사람에게서도 사라지고, 되돌릴 수 없어요.' : '이 여행의 날짜와 내가 넣은 일정을 모두 지울까요? 되돌릴 수 없어요.')) return;
       else if (CL) { try { await CL.remove(); } catch (e) { return toast('지우지 못했어요. 인터넷 연결을 확인해 주세요.'); } }
       try { Object.keys(localStorage).filter((k) => k.startsWith(NS + 'todo|') || ['trip', 'edits', 'sim'].some((x) => k === NS + x)).forEach((k) => localStorage.removeItem(k)); } catch (e) {}
-      return location.reload();
+      return reopenTrip();
     }
     if (t.id === 'shareEdit') return shareOut('edit');
     if (t.id === 'shareView') return shareOut('view');
     if (t.id === 'shareStop') { CL.stopPublic().then(() => { toast('보기 링크를 껐어요.'); renderPlan(); }).catch(() => toast('끄지 못했어요.')); return; }
-    if (t.id === 'tripNew') { CL.close(); try { sessionStorage.setItem('dk.newTrip', '1'); localStorage.removeItem(NS + 'trip'); localStorage.removeItem(NS + 'edits'); } catch (e) {} return location.reload(); }
+    if (t.id === 'tripNew') { CL.close(); try { localStorage.removeItem(NS + 'trip'); localStorage.removeItem(NS + 'edits'); } catch (e) {} return reopenTrip(); }
     const ti = t.closest && t.closest('[data-trip]');
-    if (ti) { CL.switchTo(ti.dataset.trip); return location.reload(); }
+    if (ti) { if (ti.dataset.trip === CL.tripId) return; ti.disabled = true; return openTrip(ti.dataset.trip).catch(() => { ti.disabled = false; toast('여행을 열지 못했어요. 인터넷 연결을 확인해 주세요.'); }); }
     if (t.id === 'impGo') return runImport();
     if (t.id === 'impSave') return saveImport();
     if (t.id === 'impBack') { S.imp.plan = null; return renderPlan(); }
@@ -1060,10 +1086,10 @@
       if (b < a) { msg.textContent = '마지막 날이 시작일보다 빨라요.'; return; }
       if (dayRange(a, b).length > 30) { msg.textContent = '여행은 30일까지 만들 수 있어요.'; return; }
       const nt = { title: title || '일본 여행', start: a, end: b, stay, created: Date.now() };
-      if (CL) { t.disabled = true; return CL.create(nt, {}).then(() => { localStorage.setItem(NS + 'trip', JSON.stringify(nt)); localStorage.setItem(NS + 'edits', '{}'); location.reload(); }).catch((e) => { t.disabled = false; msg.textContent = saveErr(e); }); }
+      if (CL) { t.disabled = true; return CL.create(nt, {}).then(openTrip).catch((e) => { t.disabled = false; msg.textContent = saveErr(e); }); }
       store.set('trip', nt);
       store.set('edits', {});
-      return location.reload();
+      return reopenTrip();
     }
     if (t.id === 'editMode') { S.editMode = !S.editMode; if (!S.editMode) closeEditor(); return renderPlan(); }
     if (t.id === 'addStop') return openEditor('new');
