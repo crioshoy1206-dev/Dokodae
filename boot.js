@@ -78,7 +78,19 @@
     g.firstChild.onclick = async () => {
       msg.textContent = '로그인 창을 여는 중…';
       try { await window.DK_CLOUD.signIn(); msg.textContent = '확인하는 중…'; await signedIn(null); }
-      catch (e) { msg.textContent = /popup/.test(e && e.code) ? '로그인 창이 막혔어요. 팝업을 허용하고 다시 눌러 주세요.' : '로그인하지 못했어요. 다시 해 주세요.'; }
+      catch (e) {
+        const c = (e && e.code) || '';
+        const why = {
+          'auth/popup-blocked': '로그인 창이 막혔어요. 팝업을 허용하고 다시 눌러 주세요.',
+          'auth/popup-closed-by-user': '로그인 창이 닫혔어요. 다시 눌러 주세요.',
+          'auth/cancelled-popup-request': '로그인 창이 닫혔어요. 다시 눌러 주세요.',
+          'auth/unauthorized-domain': '이 주소가 Firebase 승인된 도메인에 없어요. (Authentication → 설정 → 승인된 도메인)',
+          'auth/operation-not-allowed': 'Firebase에서 Google 로그인이 아직 꺼져 있어요. (Authentication → 로그인 방법)',
+          'auth/network-request-failed': '인터넷 연결을 확인하고 다시 눌러 주세요.'
+        }[c];
+        msg.textContent = (why || '로그인하지 못했어요. 다시 해 주세요.') + (c ? ' [' + c + ']' : e && e.message ? ' [' + String(e.message).slice(0, 80) + ']' : '');
+        console.warn('login', e);
+      }
     };
   }
   // 앱이 읽는 이 기기 저장소에 여행을 펼쳐 둬요
