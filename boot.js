@@ -112,9 +112,11 @@
     const ns = 'th.u.' + u.uid + '.';
     try {
       if (P.t && P.j) await C.join(P.t, P.j).catch((e) => console.warn('join', e));
+      // '새 여행'을 누르고 다시 열렸으면 예전 여행을 자동으로 열지 않고 새로 만들기 화면을 보여줘요
+      let fresh = false; try { fresh = sessionStorage.getItem('dk.newTrip') === '1'; sessionStorage.removeItem('dk.newTrip'); } catch (e) {}
       let id = P.t || C.getCur();
-      if (!id) { const ls = await C.list(); id = ls[0] && ls[0].id; }
-      if (!id) id = await migrateLocal(C, u.uid);
+      if (!id && !fresh) { const ls = await C.list(); id = ls[0] && ls[0].id; }
+      if (!id && !fresh) id = await migrateLocal(C, u.uid);
       if (id) {
         const o = await C.open(id).catch(() => null);
         if (o) stage(o, o.role === 'view' ? 'th.v.' + id + '.' : ns);

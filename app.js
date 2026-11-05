@@ -1047,7 +1047,7 @@
     if (t.id === 'shareEdit') return shareOut('edit');
     if (t.id === 'shareView') return shareOut('view');
     if (t.id === 'shareStop') { CL.stopPublic().then(() => { toast('보기 링크를 껐어요.'); renderPlan(); }).catch(() => toast('끄지 못했어요.')); return; }
-    if (t.id === 'tripNew') { CL.close(); try { localStorage.removeItem(NS + 'trip'); localStorage.removeItem(NS + 'edits'); } catch (e) {} return location.reload(); }
+    if (t.id === 'tripNew') { CL.close(); try { sessionStorage.setItem('dk.newTrip', '1'); localStorage.removeItem(NS + 'trip'); localStorage.removeItem(NS + 'edits'); } catch (e) {} return location.reload(); }
     const ti = t.closest && t.closest('[data-trip]');
     if (ti) { CL.switchTo(ti.dataset.trip); return location.reload(); }
     if (t.id === 'impGo') return runImport();
