@@ -26,6 +26,16 @@
   };
   const I = (n) => IC[n] ? `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${IC[n]}</svg>` : '';
   const panel = $('#panel');
+  // 날짜 칩 줄: 마우스 휠과 끌기로도 옆으로 넘길 수 있게 해요 (PC)
+  (function () {
+    const el = $('#days'); if (!el) return;
+    el.addEventListener('wheel', (e) => { if (el.scrollWidth <= el.clientWidth || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return; el.scrollLeft += e.deltaY; e.preventDefault(); }, { passive: false });
+    let x0 = null, s0 = 0, moved = false;
+    el.addEventListener('pointerdown', (e) => { if (e.pointerType !== 'mouse') return; x0 = e.clientX; s0 = el.scrollLeft; moved = false; });
+    window.addEventListener('pointermove', (e) => { if (x0 == null) return; const dx = e.clientX - x0; if (Math.abs(dx) > 4) moved = true; el.scrollLeft = s0 - dx; });
+    window.addEventListener('pointerup', () => { x0 = null; });
+    el.addEventListener('click', (e) => { if (moved) { e.stopPropagation(); e.preventDefault(); moved = false; } }, true);
+  })();
   // 지도 레이어 버튼이 날짜 칩 아래에 오도록 상단 바 높이를 CSS 변수로 넘겨요.
   (function () { const tb = $('#topbar'); if (!tb) return; const f = () => document.documentElement.style.setProperty('--tbh', tb.offsetHeight + 'px'); f(); if (window.ResizeObserver) new ResizeObserver(f).observe(tb); })();
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -202,16 +212,18 @@
   L.control.attribution({ position: 'bottomleft', prefix: false }).addTo(map);
   L.control.zoom({ position: 'bottomleft' }).addTo(map);
   const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-  // CARTO 타일은 API 키가 필요해져서 OpenStreetMap 기본 타일을 써요 (다크 모드는 CSS로 반전)
-  // 기본은 글자가 적은 회색 지도(Esri), 상세 지도(OSM)는 토글로 바꿀 수 있어요
-  const grey = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
-    maxZoom: 19, maxNativeZoom: 16, crossOrigin: true, attribution: 'Tiles © Esri'
+  // 기본 지도는 MapTiler Streets, 상세 지도(OSM)는 토글로 바꿀 수 있어요 (다크 모드는 CSS로 반전)
+  // MapTiler 키는 웹에 공개되는 키라서 MapTiler 설정에서 허용 주소로 제한해 둬요.
+  const MT_KEY = 'NDPQPUp7siqFUbAkTieA';
+  const grey = L.tileLayer('https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}.png?key=' + MT_KEY, {
+    tileSize: 512, zoomOffset: -1, minZoom: 1, maxZoom: 19, crossOrigin: true,
+    attribution: '<a href="https://www.maptiler.com/copyright/" target="_blank" rel="noopener">© MapTiler</a> <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap contributors</a>'
   });
   const osm = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19, crossOrigin: true, attribution: '© OpenStreetMap contributors'
   });
   const tiles = grey.addTo(map);
-  L.control.layers({ '간결 지도': grey, '상세 지도': osm }, null, { position: 'bottomleft', collapsed: true }).addTo(map);
+  L.control.layers({ '기본 지도': grey, 'OSM 지도': osm }, null, { position: 'bottomleft', collapsed: true }).addTo(map);
   // 인터넷이 안 되거나 타일이 안 오면 앱에 들어 있는 간략 지도를 깔아요
   let baseOn = false, tileErr = 0;
   function useOfflineBase() {
