@@ -580,6 +580,92 @@
       ${!OWNER && UT ? '<button class="btn ghost sm" id="tripDel">이 여행 지우기</button>' : ''}
       ${USER ? '<button class="btn ghost sm" id="logout">로그아웃</button>' : ''}</div></div>`;
   }
+  // ---------- AI 일정 가져오기 ----------
+  function importHTML() {
+    const st = S.imp || {};
+    if (st.plan) {
+      const p = st.plan, nStops = p.days.reduce((k, d) => k + d.stops.length, 0), found = st.found || 0;
+      return `<div class="card newtrip"><div class="big">${I('cal')} 이렇게 읽었어요</div>
+        <div style="margin-top:6px"><b>${esc(p.title)}</b> · ${esc(p.start)} ~ ${esc(p.end)}${p.stay ? ' · ' + esc(p.stay) : ''}</div>
+        <div class="muted">장소 ${nStops}곳 중 ${found}곳을 지도에서 찾았어요.${nStops > found ? ' 못 찾은 곳은 나중에 "수정"에서 위치를 찍어 주세요.' : ''}</div>
+        ${p.notes ? `<div class="tip">${I('bulb')} ${esc(p.notes)}</div>` : ''}
+        <div class="impdays">${p.days.map((d) => `<div class="impday"><b>${esc(d.date.slice(5).replace('-', '/'))}</b> ${d.stops.map((s) => `<span class="${s.lat == null ? 'nf' : ''}">${esc(s.t)} ${esc(s.n)}</span>`).join('')}</div>`).join('')}</div>
+        <div class="row" style="margin-top:10px"><button class="btn" id="impSave">${I('cal')} 이 일정으로 만들기</button><button class="btn ghost" id="impBack">다시 넣기</button></div></div>`;
+    }
+    const files = st.files || [];
+    return `<div class="card newtrip"><div class="big">${I('chat')} AI로 일정 가져오기</div>
+      <div class="muted">메모, 카톡 대화, 엑셀에 적어 둔 일정을 붙여 넣거나 캡처·txt 파일을 올리면 날짜별 일정과 지도 동선을 만들어 드려요.</div>
+      <textarea id="impText" rows="5" placeholder="예: 2/1 오사카 도착, 11시 도톤보리, 1시 구로몬 시장 점심, 4시 오사카성…">${esc(st.text || '')}</textarea>
+      <div class="row" style="margin-top:8px"><label class="btn ghost" for="impFile" style="margin:0">${I('camera')} 캡처·txt 올리기</label><input type="file" id="impFile" accept="image/*,.txt,text/plain" multiple hidden>
+      ${files.length ? `<span class="muted">${files.length}개 올림 <button class="tutskip" id="impClear">지우기</button></span>` : ''}</div>
+      <p class="lmsg" id="impMsg">${esc(st.err || '')}</p>
+      <button class="btn" id="impGo" style="width:100%" ${st.busy ? 'disabled' : ''}>${st.busy ? esc(st.busy) : 'AI로 일정 만들기'}</button></div>`;
+  }
+  function sliceImage(file) {
+    // 긴 카톡 캡처도 글자가 읽히게: 폭 1000px로 맞추고 세로 2000px씩 나눠요
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file), im = new Image();
+      im.onload = () => {
+        const k = Math.min(1, 1000 / im.width), W = Math.round(im.width * k), H = Math.round(im.height * k), out = [];
+        for (let y = 0; y < H && out.length < 4; y += 2000) {
+          const h = Math.min(2000, H - y), c = document.createElement('canvas'); c.width = W; c.height = h;
+          c.getContext('2d').drawImage(im, 0, y / k, im.width, h / k, 0, 0, W, h);
+          out.push({ media_type: 'image/jpeg', data: c.toDataURL('image/jpeg', 0.72).split(',')[1] });
+        }
+        URL.revokeObjectURL(url); resolve(out);
+      };
+      im.onerror = () => { URL.revokeObjectURL(url); reject(new Error('img')); };
+      im.src = url;
+    });
+  }
+  async function geocode(s) {
+    const q = [s.ja || s.n, s.city].filter(Boolean).join(' ');
+    try {
+      const r = await fetch(`https://api.maptiler.com/geocoding/${encodeURIComponent(q)}.json?key=${MT_KEY}&country=jp&limit=1&language=ko`);
+      const j = await r.json(), f = j.features && j.features[0];
+      if (f && f.center) return { lat: +f.center[1].toFixed(5), lng: +f.center[0].toFixed(5) };
+    } catch (e) {}
+    return null;
+  }
+  async function runImport() {
+    const st = S.imp = S.imp || {};
+    st.text = ($('#impText') || {}).value || '';
+    const files = st.files || [];
+    if (!st.text.trim() && !files.length) { st.err = '일정 글을 붙여 넣거나 캡처를 올려 주세요.'; return renderPlan(); }
+    if (!navigator.onLine) { st.err = '인터넷이 연결돼야 AI가 일정을 읽을 수 있어요.'; return renderPlan(); }
+    st.err = ''; st.busy = 'AI가 일정을 읽는 중… (20초쯤 걸려요)'; renderPlan();
+    try {
+      let text = st.text; const images = [];
+      for (const f of files) {
+        if (/^text\/|\.txt$/i.test(f.type || f.name)) text += '\n\n' + (await f.text()).slice(0, 15000);
+        else if (/^image\//.test(f.type)) images.push(...(await sliceImage(f)));
+      }
+      const r = await fetch('/api/import', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text, images: images.slice(0, 5), today: nowJST().d }) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.plan) throw new Error(j.message || '일정을 읽지 못했어요.');
+      const p = j.plan;
+      if (!p.days.length || !p.start) throw new Error('날짜가 있는 일정을 찾지 못했어요. 날짜를 같이 적어 주세요.');
+      st.busy = '지도에서 장소를 찾는 중…'; renderPlan();
+      const all = p.days.flatMap((d) => d.stops); let found = 0;
+      for (let i = 0; i < all.length; i += 4) {
+        const res = await Promise.all(all.slice(i, i + 4).map(geocode));
+        res.forEach((g, k) => { if (g) { Object.assign(all[i + k], g); found++; } });
+      }
+      st.plan = p; st.found = found;
+    } catch (e) { st.err = e.message || '일정을 읽지 못했어요.'; }
+    st.busy = ''; renderPlan();
+  }
+  function saveImport() {
+    const p = S.imp.plan;
+    if (dayRange(p.start, p.end).length > 30) return toast('여행은 30일까지 만들 수 있어요.');
+    const edits = {}; let n = 0;
+    p.days.forEach((d) => {
+      edits['u' + d.date] = { mod: {}, del: [], add: d.stops.map((s) => ({ id: (Date.now() + n++).toString(36), t: s.t, n: s.n, m: s.m, todo: s.todo, lat: s.lat, lng: s.lng })) };
+    });
+    store.set('trip', { title: p.title, start: p.start, end: p.end, stay: p.stay, created: Date.now(), via: 'ai' });
+    store.set('edits', edits);
+    location.reload();
+  }
   function newTripHTML() {
     const t = nowJST().d;
     return `<div class="card newtrip"><div class="big">새 여행 만들기</div>
@@ -594,7 +680,7 @@
   function renderPlan() {
     const n = nowJST();
     const d = dayOf(S.day);
-    if (!d) { view.innerHTML = newTripHTML() + acctHTML(); return; }
+    if (!d) { view.innerHTML = importHTML() + (S.imp && S.imp.plan ? '' : newTripHTML()) + acctHTML(); return; }
     const { cur, next } = findNow(n);
     let top = '';
     if (inTrip(n) && (cur || next)) {
@@ -904,6 +990,10 @@
       try { Object.keys(localStorage).filter((k) => k.startsWith(NS + 'todo|') || ['trip', 'edits', 'sim'].some((x) => k === NS + x)).forEach((k) => localStorage.removeItem(k)); } catch (e) {}
       return location.reload();
     }
+    if (t.id === 'impGo') return runImport();
+    if (t.id === 'impSave') return saveImport();
+    if (t.id === 'impBack') { S.imp.plan = null; return renderPlan(); }
+    if (t.id === 'impClear') { S.imp.files = []; S.imp.text = ($('#impText') || {}).value || ''; return renderPlan(); }
     if (t.id === 'tripMake') {
       const title = $('#ntTitle').value.trim(), a = $('#ntStart').value, b = $('#ntEnd').value, stay = $('#ntStay').value.trim(), msg = $('#ntMsg');
       if (!a || !b) { msg.textContent = '시작일과 마지막 날을 골라 주세요.'; return; }
@@ -961,6 +1051,11 @@
   });
   document.addEventListener('change', async (ev) => {
     if (ev.target.id === 'simIn') { store.set('sim', ev.target.value); const n = nowJST(); return setDay(ev.target.value ? ev.target.value.slice(0, 10) : (inTrip(n) ? n.d : TRIP_START)); }
+    if (ev.target.id === 'impFile' && ev.target.files.length) {
+      S.imp = S.imp || {}; S.imp.text = ($('#impText') || {}).value || '';
+      S.imp.files = (S.imp.files || []).concat([...ev.target.files]).slice(0, 6); S.imp.err = '';
+      return renderPlan();
+    }
     if (ev.target.id === 'photo' && ev.target.files[0]) {
       try { S.pendingImg = await resizeImage(ev.target.files[0]); } catch (e) { alert('사진을 읽지 못했어요.'); }
       ev.target.value = ''; render();

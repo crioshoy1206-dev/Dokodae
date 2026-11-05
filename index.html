@@ -247,6 +247,12 @@ body{font-variant-emoji:text}
 .newtrip label{display:block;font-size:13px;color:var(--sub);margin:10px 0 4px}
 .newtrip .two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .newtrip .two > div{min-width:0}
+.newtrip textarea{width:100%;box-sizing:border-box;margin-top:10px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;padding:10px 12px;font:inherit;font-size:16px;resize:vertical}
+.impdays{margin-top:10px;display:flex;flex-direction:column;gap:6px;max-height:260px;overflow:auto}
+.impday{font-size:13px;line-height:1.6;color:var(--sub)}
+.impday b{color:var(--ink);margin-right:4px}
+.impday span{display:inline-block;margin-right:8px}
+.impday span.nf{text-decoration:underline dotted var(--warn)}
 @media (max-width:400px){.newtrip .two{grid-template-columns:1fr;gap:0}}
 .newtrip input[type=date]{width:100%;min-width:0;max-width:100%;display:block;-webkit-appearance:none;appearance:none;border:1px solid var(--line);background:var(--card);border-radius:10px;padding:10px 12px;font-size:16px}
 .acct{display:flex;align-items:center;gap:10px}
