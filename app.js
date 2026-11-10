@@ -364,9 +364,8 @@
       if (s[3] == null) return;
       const cls = 'pin' + (no ? (s[5] === 'm' ? ' move' : '') : ' start') + (i === ci ? ' cur' : '');
       const icon = L.divIcon({ className: '', html: `<div class="${cls}">${no}</div>`, iconSize: [26, 26], iconAnchor: [13, 13] });
-      const items = (d.rides[i] || []).concat(todoList(d, s));
       const m = L.marker([s[3], s[4]], { icon, zIndexOffset: i === ci ? 1000 : no ? 500 : 900 }).addTo(layer)
-        .bindPopup(`<div class="popup"><b>${no}${no ? '' : ' (출발)'}. ${esc(s[1])}</b><br>${esc(s[0])}${s[2] ? ' · ' + esc(s[2]) : ''}${items.length ? `<ul>${items.map((t) => `<li>${esc(t)}</li>`).join('')}</ul>` : ''}</div>`, { maxWidth: 280, autoPan: false })
+        .bindPopup(`<div class="popup"><b>${no}${no ? '' : ' (출발)'}. ${esc(s[1])}</b><br>${esc(s[0])}</div>`, { maxWidth: 240, autoPan: false })
         .bindTooltip(s[1], { permanent: true, direction: 'right', offset: [14, 0], className: 'lb' })
         .on('click', () => selectStop(i, false));
       markers['s' + i] = m; if (!FAR.has(s[1])) fitPts.push([s[3], s[4]]);
