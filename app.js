@@ -269,6 +269,7 @@
 
   const zoomCls = () => { const z = map.getZoom(), c = map.getContainer().classList; c.toggle('z-st', z < 14); c.toggle('z-fd', z < 15); c.toggle('z-lb', z < 12); c.toggle('z-wd', z < 11); };
   map.on('zoomend', zoomCls);
+  const LEG_OFF = '#a3adb3'; let legs = {};
   let layer = L.layerGroup().addTo(map), pickLayer = L.layerGroup().addTo(map), markers = {}, drawnDay = null, fitPts = [];
 
   // 지도에서 가려지지 않는 영역 (PC: 오른쪽 도구창, 모바일: 아래 시트)
@@ -298,10 +299,12 @@
       if (!ok) { line.setTooltipContent(lb + ' ' + txt + ' (직선 거리 기준)'); return; }
       line.setLatLngs([a, ...w.c, b]); line.setStyle({ dashArray: null, weight: W, opacity: 0.85 });
       line.setTooltipContent(lb + ' ' + txt);
+      if (tg === layer) paintLegs();
     };
     let w = WALKC[k]; if (!w) { try { w = JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) {} }
-    if (w) { WALKC[k] = w; apply(w); return; }
+    if (w) { WALKC[k] = w; apply(w); return line; }
     walkQ.push({ k, a, b, apply }); runWalkQ();
+    return line;
   }
   async function runWalkQ() {
     if (walkBusy || !navigator.onLine) return; walkBusy = true;
@@ -326,12 +329,15 @@
     const n = nowJST(), ci = curStop(d, n);
     let last = null;
     // 가까우면 도보 경로, 멀면(2.5km 넘게) 이동 구간으로 곧게 이어요
+    // 구간마다 도착하는 일정 번호를 붙여 두고, 고른 일정으로 가는 길만 민트색으로 칠해요
+    legs = {}; let to = null;
     const walk = (p) => {
       if (!last) return; const dist = map.distance(last, p);
       if (dist <= 40) return;
-      if (dist <= 2500) return walkLine(last, p, PRI, layer);
-      L.polyline([last, p], { color: PRI, weight: 4, opacity: 0.75, dashArray: '10 8', lineCap: 'round' }).addTo(layer)
-        .bindTooltip(`이동 · 약 ${(dist / 1000).toFixed(1)}km (교통수단은 일정에서 확인)`, { sticky: true });
+      const ln = dist <= 2500 ? walkLine(last, p, LEG_OFF, layer)
+        : L.polyline([last, p], { color: LEG_OFF, weight: 4, opacity: 0.75, dashArray: '10 8', lineCap: 'round' }).addTo(layer)
+          .bindTooltip(`이동 · 약 ${(dist / 1000).toFixed(1)}km (교통수단은 일정에서 확인)`, { sticky: true });
+      if (to != null) (legs[to] = legs[to] || []).push(ln);
     };
     // 동선 순서: 원래 동선(열차 구간 포함) 사이에 내가 추가한 일정을 시간 순서대로 끼워 넣어요
     const P = R.PLANS[d.id] || [], nb = d.base.length, plan = []; let k = 0;
@@ -341,9 +347,9 @@
     });
     plan.push(...P.slice(k).filter((x) => typeof x !== 'number'));
     plan.forEach((it) => {
-      if (typeof it === 'number') { const s = d.stops[it]; if (!s || s.del || s[3] == null) return; const p = L.latLng(s[3], s[4]); walk(p); last = p; return; }
+      if (typeof it === 'number') { const s = d.stops[it]; if (!s || s.del || s[3] == null) return; const p = L.latLng(s[3], s[4]); to = it; walk(p); last = p; return; }
       const [key, a, b] = it, ln = R.LINES[key], part = seg(key, a, b), pts = part.map((x) => L.latLng(x[1], x[2]));
-      walk(pts[0]);
+      to = null; walk(pts[0]);
       L.polyline(pts, { color: '#ffffff', weight: 9, opacity: 0.85 }).addTo(layer);
       const rd = R.RIDE[it.join('|')];
       L.polyline(pts, { color: ln.c, weight: 5, opacity: 1 }).addTo(layer).bindTooltip(`${ln.n} · ${a} → ${b}${rd ? " · '" + rd[1] + "' 방면" : ''}`, { sticky: true });
@@ -370,9 +376,19 @@
         .on('click', () => showPick(mi, pi));
       markers[`f${mi}_${pi}`] = m; fitPts.push([p[3], p[4]]);
     }));
+    paintLegs();
     if (meMarker) meMarker.addTo(map);
     if (fit !== false) fitDay();
     zoomCls();
+  }
+  // 고른 일정(없으면 지금 하는 일정)으로 오는 길은 민트색, 나머지는 회색
+  function paintLegs() {
+    const d = dayOf(S.day), on = S.sel != null ? S.sel : d ? curStop(d, nowJST()) : -1;
+    Object.keys(legs).forEach((k) => legs[k].forEach((ln) => {
+      const hit = +k === on; ln.setStyle({ color: hit ? PRI : LEG_OFF, opacity: hit ? 1 : 0.75, weight: hit ? 6 : 3 });
+      if (hit) ln.bringToFront();
+    }));
+    Object.keys(markers).forEach((k) => { const el = markers[k].getElement && markers[k].getElement(); const pin = el && el.firstElementChild; if (pin && pin.classList.contains('pin')) pin.classList.toggle('sel', k === 's' + on); });
   }
   function fitDay() { if (fitPts.length) map.fitBounds(L.latLngBounds(fitPts), Object.assign({ maxZoom: 16 }, pad())); }
 
@@ -399,7 +415,7 @@
   function selectStop(i, fromList) {
     const d = dayOf(S.day), s = d.stops[i];
     if (fromList) setOpen(i, !S.xp.has(i)); else setOpen(i, true);
-    S.sel = i;
+    S.sel = i; paintLegs();
     document.querySelectorAll('.stop.on').forEach((x) => x.classList.remove('on'));
     const el = document.querySelector(`.stop[data-stop="${i}"]`);
     if (el) { el.classList.add('on'); if (!fromList) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
