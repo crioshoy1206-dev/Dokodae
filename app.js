@@ -5,6 +5,8 @@
 
   // ---------- 아이콘: 단색 선 아이콘 (글자색을 따라가요) ----------
   const IC = {
+    coin: '<circle cx="12" cy="12" r="8.5"/><path d="M8.8 7.8 12 12l3.2-4.2M12 12v5M9.3 12.6h5.4M9.3 15h5.4"/>',
+    down: '<path d="M12 4v11M7.5 10.5 12 15l4.5-4.5M5 19.5h14"/>',
     train: '<rect x="5" y="3.5" width="14" height="13" rx="3"/><path d="M5 10h14M8.5 13.2h.01M15.5 13.2h.01M8.5 16.5 6.5 20.5M15.5 16.5l2 4"/>',
     food: '<path d="M3.5 11.5h17a8.5 8.5 0 0 1-17 0z"/><path d="M8.5 20.5h7M13 3.5l-4 6M18.5 4l-6 6"/>',
     torii: '<path d="M3 5c3 1.2 15 1.2 18 0M5 9.5h14M7 6.3V21M17 6.3V21M12 6.5v3"/>',
@@ -81,7 +83,7 @@
   const CARD = Object.fromEntries(window.CARDS.map((c) => [c.id, c]));
   const PRI = getComputedStyle(document.documentElement).getPropertyValue('--pri').trim() || '#4E978D';
   let IT = [];
-  const TABS = ['plan', 'ask', 'cards', 'phrases', 'sos'];
+  const TABS = ['plan', 'ask', 'cards', 'phrases', 'pay', 'sos'];
   const firstTab = (location.hash || '').slice(1);
   const S = {
     tab: TABS.includes(firstTab) ? firstTab : 'plan',
@@ -174,6 +176,7 @@
     try { localStorage.setItem(NS + 'trip', JSON.stringify(trip)); localStorage.setItem(NS + 'edits', JSON.stringify(edits)); } catch (e) {}
     if (!UT || trip.start !== UT.start || trip.end !== UT.end) { if (!S.edit) reopenTrip(); }
     else { EDITS = edits; R.DAYS.forEach(applyEdits); drawnDay = null; if (!S.edit) render(); }
+    offlineSoon();
     toast('함께 편집하는 사람이 일정을 고쳤어요.');
   });
   const edOf = (d) => { const e = EDITS[d.id] = EDITS[d.id] || {}; e.mod = e.mod || {}; e.del = e.del || []; e.add = e.add || []; return e; };
@@ -202,7 +205,7 @@
     d.vis = seq.filter((i) => !d.stops[i].del);
   }
   const numOf = (d, i) => d.vis.indexOf(i) + (d.start ? 0 : 1); // 출발점이 없는 일정은 1번부터
-  function saveEdits() { store.set('edits', EDITS); R.DAYS.forEach(applyEdits); drawnDay = null; }
+  function saveEdits() { store.set('edits', EDITS); R.DAYS.forEach(applyEdits); drawnDay = null; offlineSoon(); }
   function loadTrip() {
     setupTrip(); setupRides(); EDITS = store.get('edits', {});
     R.DAYS.forEach((d) => { d.base = d.stops.map((x) => x.slice()); applyEdits(d); });
@@ -624,7 +627,7 @@
     const trips = CL ? `<div class="card"><div class="k">내 여행</div><div id="tripList" class="muted">불러오는 중…</div>
       ${UT ? '<button class="btn ghost sm" id="tripNew" style="margin-top:8px">＋ 새 여행</button>' : ''}</div>` : '';
     if (CL) setTimeout(loadTripList, 0);
-    return `${share}${trips}<div class="card"><div class="k">내 계정</div>${who}
+    return `${share}${trips}${UT ? `<div class="card"><div class="k">${I('down')} 오프라인</div><div class="muted" id="offInfo">${offInfo()}</div></div>` : ''}<div class="card"><div class="k">내 계정</div>${who}
       <div class="row" style="margin-top:10px;gap:6px;flex-wrap:wrap"><button class="btn ghost sm" id="tutAgain">사용법 다시 보기</button>
       ${!OWNER && UT ? `<button class="btn ghost sm" id="tripDel">${CL && CL.role === 'edit' ? '이 여행 닫기' : '이 여행 지우기'}</button>` : ''}
       ${USER ? '<button class="btn ghost sm" id="logout">로그아웃</button>' : ''}</div></div>`;
@@ -1006,6 +1009,158 @@
       ${unsolved.length ? `<div class="card"><div class="k">AI로 해결 못 한 질문 (${unsolved.length})</div>${unsolved.slice(-5).reverse().map((u) => `<div class="muted" style="margin-top:6px">• ${esc(u.q)}</div>`).join('')}<div class="muted" style="margin-top:6px">현지인·전문가 연결은 준비 중이에요. 이 목록은 이 휴대폰에만 저장돼요.</div></div>` : ''}`;
   }
 
+  // ---------- 경비 정산 ----------
+  // 일정과 같은 곳(EDITS._pay)에 저장해서, 같이 편집하는 사람에게도 바로 보여요
+  // EDITS._pay = { ppl: [이름], fx: 직접 넣은 환율(1엔=원), items: [{ id, d, n, a, c: 'JPY'|'KRW', by, for: [이름] }] }
+  const PAY = () => { const p = EDITS._pay = EDITS._pay || {}; p.ppl = p.ppl || []; p.items = p.items || []; return p; };
+  const won = (v) => '₩' + Math.round(v).toLocaleString('ko-KR');
+  const yen = (v) => '¥' + Math.round(v).toLocaleString('ko-KR');
+  const nm = (s) => String(s || '').trim().slice(0, 12);
+  function payPeople() {
+    const p = PAY();
+    if (p.ppl.length) return p.ppl;
+    const m = CL && CL.trip && CL.trip.members ? Object.values(CL.trip.members).map((x) => nm(x.name)).filter(Boolean) : [];
+    return m.length ? [...new Set(m)] : [nm(USER && USER.name) || '나'];
+  }
+  function fxRate() { const p = PAY(); return p.fx || (store.get('fx', null) || {}).r || 9.2; }
+  function fetchFx() {
+    const c = store.get('fx', null);
+    if ((c && Date.now() - c.t < 6 * 3600e3) || !navigator.onLine || S.fxBusy) return;
+    S.fxBusy = true;
+    fetch('https://open.er-api.com/v6/latest/JPY').then((r) => r.json()).then((j) => {
+      const r = j && j.rates && j.rates.KRW;
+      if (r > 1 && r < 30) { store.set('fx', { r, t: Date.now() }); if (S.tab === 'pay') renderPay(); }
+    }).catch(() => {}).finally(() => { S.fxBusy = false; });
+  }
+  function settle() {
+    const p = PAY(), fx = fxRate(), paid = {}, share = {}; let total = 0;
+    p.items.forEach((it) => {
+      const krw = it.c === 'KRW' ? it.a : it.a * fx, f = it.for && it.for.length ? it.for : payPeople();
+      total += krw; paid[it.by] = (paid[it.by] || 0) + krw;
+      f.forEach((x) => { share[x] = (share[x] || 0) + krw / f.length; });
+    });
+    const pos = [], neg = [];
+    new Set([...Object.keys(paid), ...Object.keys(share)]).forEach((k) => { const v = (paid[k] || 0) - (share[k] || 0); if (v > 0.5) pos.push([k, v]); else if (v < -0.5) neg.push([k, -v]); });
+    pos.sort((a, b) => b[1] - a[1]); neg.sort((a, b) => b[1] - a[1]);
+    const tx = []; let i = 0, j = 0;
+    while (i < neg.length && j < pos.length) {
+      const m = Math.min(neg[i][1], pos[j][1]); tx.push([neg[i][0], pos[j][0], m]);
+      neg[i][1] -= m; pos[j][1] -= m; if (neg[i][1] < 0.5) i++; if (pos[j][1] < 0.5) j++;
+    }
+    return { total, paid, share, tx };
+  }
+  function savePay() { store.set('edits', EDITS); offlineSoon(); }
+  function renderPay() {
+    if (!UT) { view.innerHTML = `<div class="card"><b>여행을 먼저 만들어 주세요.</b><div class="muted">일정 탭에서 여행을 만들면 같이 간 사람들과 경비를 나눌 수 있어요.</div></div>`; return; }
+    if (VIEW) { view.innerHTML = `<div class="card"><b>경비는 함께 편집하는 사람만 볼 수 있어요.</b><div class="muted">보기 전용 링크로 연 여행이에요.</div></div>`; return; }
+    fetchFx();
+    const p = PAY(), ppl = payPeople(), fx = fxRate(), r = settle(), ro = VIEW;
+    const f = S.payF = S.payF || { c: 'JPY', n: '', a: '' };
+    if (!ppl.includes(f.by)) { const me = nm(CL && CL.trip && CL.trip.members && CL.user && (CL.trip.members[CL.user.uid] || {}).name) || nm(USER && USER.name); f.by = ppl.includes(me) ? me : ppl[0]; }
+    if (f.for) f.for = f.for.filter((x) => ppl.includes(x));
+    const forSel = f.for && f.for.length ? f.for : ppl;
+    const byDay = {}; p.items.forEach((it) => (byDay[it.d] = byDay[it.d] || []).push(it));
+    const used = (x) => p.items.some((it) => it.by === x || (it.for || []).includes(x));
+    view.innerHTML = `<div class="card paysum"><div class="k">${I('coin')} 이 여행 경비</div><div class="big">${won(r.total)}</div>
+        <div class="muted">${yen(r.total / fx)} · ${ppl.length}명 · 1인당 ${won(r.total / Math.max(1, ppl.length))}</div>
+        <div class="muted">1엔 = ${fx.toFixed(2)}원${p.fx ? ' (직접 넣은 환율)' : ''}${ro ? '' : ' <button class="linkbtn" id="fxEdit">환율 고치기</button>'}</div></div>
+      <div class="card"><div class="k">정산</div>${r.tx.length ? r.tx.map(([a, b, v]) => `<div class="payrow"><span><b>${esc(a)}</b> → <b>${esc(b)}</b></span><b>${won(v)}</b></div>`).join('')
+        : `<div class="muted" style="margin-top:4px">${p.items.length ? '모두 똑같이 냈어요. 보낼 돈이 없어요.' : '경비를 넣으면 누가 누구에게 얼마를 보내면 되는지 알려줘요.'}</div>`}
+        ${p.items.length && ppl.length > 1 ? `<div class="paypp">${ppl.map((x) => `<span><b>${esc(x)}</b> 낸 돈 ${won(r.paid[x] || 0)} · 쓴 몫 ${won(r.share[x] || 0)}</span>`).join('')}</div>` : ''}</div>
+      ${ro ? '' : `<div class="card payadd"><div class="k">경비 넣기</div>
+        <input type="text" id="payN" maxlength="40" placeholder="어디에 썼나요? 예: 라멘, 스이카 충전" value="${esc(f.n)}">
+        <div class="payamt"><input type="text" inputmode="decimal" id="payA" placeholder="금액" value="${esc(f.a)}"><div class="seg"><button data-payc="JPY" class="${f.c === 'JPY' ? 'on' : ''}">엔</button><button data-payc="KRW" class="${f.c === 'KRW' ? 'on' : ''}">원</button></div></div>
+        <div class="k">낸 사람</div><div class="chips">${ppl.map((x) => `<button class="chip${x === f.by ? ' on' : ''}" data-payby="${esc(x)}">${esc(x)}</button>`).join('')}</div>
+        <div class="k">같이 쓴 사람 (나눠 낼 사람)</div><div class="chips">${ppl.map((x) => `<button class="chip${forSel.includes(x) ? ' on' : ''}" data-payfor="${esc(x)}">${esc(x)}</button>`).join('')}</div>
+        <p class="paymsg" id="payMsg"></p>
+        <button class="btn" id="payAdd" style="width:100%">넣기</button></div>
+      <div class="card"><div class="k">같이 간 사람</div><div class="chips">${ppl.map((x) => `<span class="chip">${esc(x)}${ppl.length > 1 && !used(x) ? ` <button class="x" data-paydel="${esc(x)}" aria-label="${esc(x)} 빼기">×</button>` : ''}</span>`).join('')}</div>
+        <div class="row"><input type="text" id="payP" maxlength="12" placeholder="이름" style="flex:1;width:auto;min-width:0"><button class="btn ghost sm" id="payPAdd">사람 추가</button></div></div>`}
+      ${Object.keys(byDay).sort().reverse().map((dd) => `<div class="k" style="margin-top:14px">${md(dd)} (${wd(dd)})</div>` + byDay[dd].slice().reverse().map((it) => {
+        const fl = it.for && it.for.length ? it.for : ppl;
+        return `<div class="card payitem"><div class="pn"><b>${esc(it.n)}</b><div class="muted">${esc(it.by)} 냄 · ${fl.length === ppl.length && ppl.every((x) => fl.includes(x)) ? '모두' : fl.map(esc).join(', ')}</div></div>
+          <div class="amt">${it.c === 'KRW' ? won(it.a) : yen(it.a)}${it.c === 'JPY' ? `<div class="muted">${won(it.a * fx)}</div>` : ''}</div>${ro ? '' : `<button class="x" data-payrm="${esc(it.id)}" aria-label="지우기">×</button>`}</div>`;
+      }).join('')).join('')}`;
+  }
+  function payClick(t, d) {
+    const f = S.payF;
+    if (d.payc) { f.c = d.payc; return renderPay(), true; }
+    if (d.payby != null) { f.by = d.payby; return renderPay(), true; }
+    if (d.payfor != null) {
+      const cur = (f.for && f.for.length ? f.for : payPeople()).slice(), i = cur.indexOf(d.payfor);
+      if (i >= 0) { if (cur.length > 1) cur.splice(i, 1); } else cur.push(d.payfor);
+      f.for = cur; return renderPay(), true;
+    }
+    if (t.id === 'payAdd') {
+      const a = parseFloat(String(f.a || '').replace(/[,\s원엔¥₩]/g, '')), n = (f.n || '').trim(), msg = $('#payMsg');
+      if (!n) { msg.textContent = '어디에 썼는지 적어 주세요.'; return true; }
+      if (!(a > 0) || a > 1e9) { msg.textContent = '금액을 숫자로 넣어 주세요.'; return true; }
+      const p = PAY(); if (!p.ppl.length) p.ppl = payPeople().slice();
+      const nn = nowJST();
+      p.items.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 5), d: inTrip(nn) ? nn.d : (S.day || TRIP_START || nn.d), n: n.slice(0, 40), a: Math.round(a * 100) / 100, c: f.c, by: f.by, for: (f.for && f.for.length ? f.for : p.ppl).slice() });
+      f.n = ''; f.a = ''; f.for = null; savePay(); toast('넣었어요.'); renderPay(); return true;
+    }
+    if (d.payrm) { if (!confirm('이 경비를 지울까요?')) return true; const p = PAY(); p.items = p.items.filter((x) => x.id !== d.payrm); savePay(); renderPay(); return true; }
+    if (t.id === 'payPAdd') {
+      const v = nm(($('#payP') || {}).value); if (!v) return true;
+      const p = PAY(); if (!p.ppl.length) p.ppl = payPeople().slice();
+      if (p.ppl.includes(v)) { toast('이미 있는 이름이에요.'); return true; }
+      if (p.ppl.length >= 20) { toast('20명까지 넣을 수 있어요.'); return true; }
+      p.ppl.push(v); if (f.for) f.for.push(v); savePay(); renderPay(); return true;
+    }
+    if (d.paydel) { const p = PAY(); if (!p.ppl.length) p.ppl = payPeople().slice(); p.ppl = p.ppl.filter((x) => x !== d.paydel); savePay(); renderPay(); return true; }
+    if (t.id === 'fxEdit') {
+      const v = prompt('1엔은 몇 원인가요? 비워 두면 자동 환율을 써요.', fxRate().toFixed(2)); if (v == null) return true;
+      const n = parseFloat(v), p = PAY();
+      if (!v.trim()) delete p.fx; else if (n > 1 && n < 30) p.fx = n; else { toast('숫자를 확인해 주세요. 예: 9.3'); return true; }
+      savePay(); renderPay(); return true;
+    }
+    return false;
+  }
+
+  // ---------- 오프라인 저장 ----------
+  // 여행 장소 주변 지도와 앱 파일을 틈틈이 브라우저에 받아 둬요. 인터넷이 끊겨도 일정과 지도가 보여요.
+  // (일정·경비는 고칠 때마다 이 기기에 바로 저장되고, 로그인했으면 서버에도 저장돼요)
+  const tx2 = (lng, z) => Math.floor((lng + 180) / 360 * 2 ** z);
+  const ty2 = (lat, z) => { const r = lat * Math.PI / 180; return Math.floor((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * 2 ** z); };
+  let offT = null, offBusy = false;
+  function offlineSoon(ms) { clearTimeout(offT); offT = setTimeout(saveOffline, ms == null ? 5000 : ms); }
+  async function saveOffline() {
+    if (offBusy || !navigator.onLine || !('caches' in window) || !UT) return;
+    if (navigator.connection && navigator.connection.saveData) return;
+    const pts = [];
+    R.DAYS.forEach((d) => (d.vis || []).forEach((i) => { const s = d.stops[i]; if (s && s[3] != null) pts.push([s[3], s[4]]); }));
+    if (!pts.length) return;
+    // MapTiler 512px 타일: z9~12는 도시 전체, z13~15는 장소 주변 (약 300m)만
+    const urls = new Set(), add = (z, la, ln) => urls.add(`https://api.maptiler.com/maps/streets-v2/${z}/${tx2(ln, z)}/${ty2(la, z)}.png?key=${MT_KEY}`);
+    pts.forEach(([la, ln]) => {
+      for (let z = 9; z <= 12; z++) add(z, la, ln);
+      for (let z = 13; z <= 15; z++) [[0, 0], [0.003, 0.0035], [0.003, -0.0035], [-0.003, 0.0035], [-0.003, -0.0035]].forEach(([a, b]) => add(z, la + a, ln + b));
+    });
+    const list = [...urls].slice(0, 900);
+    offBusy = true; let got = 0, have = 0;
+    try {
+      const c = await caches.open('th-tiles');
+      for (let k = 0; k < list.length; k += 4) {
+        if (!navigator.onLine) break;
+        await Promise.all(list.slice(k, k + 4).map(async (u) => {
+          if (await c.match(u)) { have++; return; }
+          try { const r = await fetch(u, { mode: 'cors' }); if (r.ok) { await c.put(u, r); got++; } } catch (e) {}
+        }));
+        if (got) await new Promise((ok) => setTimeout(ok, 120));
+      }
+      store.set('offl', { t: Date.now(), n: got + have, total: list.length });
+    } catch (e) {} finally { offBusy = false; }
+    const el = $('#offInfo'); if (el) el.innerHTML = offInfo();
+  }
+  function offInfo() {
+    const o = store.get('offl', null);
+    if (!UT) return '';
+    if (!o) return '여행 지도를 브라우저에 저장하는 중이에요…';
+    const m = Math.round((Date.now() - o.t) / 60000);
+    return `일정·경비와 장소 주변 지도(${o.n}/${o.total}칸)를 이 브라우저에 저장해 뒀어요 · ${m < 1 ? '방금' : m < 60 ? m + '분 전' : Math.round(m / 60) + '시간 전'}`;
+  }
+
   // ---------- 라우팅 ----------
   // 다른 여행으로 바꾸기 (새로고침 없이)
   function reopenTrip() {
@@ -1016,7 +1171,7 @@
     closeEditor(); drawnDay = null;
     S.tab = 'plan'; history.replaceState(null, '', '#plan');
     setSheet(isDesk() ? 'full' : R.DAYS.length ? 'peek' : 'full');
-    render(); view.scrollTop = 0;
+    render(); view.scrollTop = 0; S.payF = null; offlineSoon();
   }
   async function openTrip(id) {
     const o = await CL.open(id);
@@ -1032,7 +1187,7 @@
     if (d && drawnDay !== d.id) drawDay(d);
     if (!d && drawnDay !== 'none') { drawnDay = 'none'; layer.clearLayers(); pickLayer.clearLayers(); markers = {}; fitPts = []; }
     renderDays();
-    ({ plan: renderPlan, cards: renderCards, ask: renderAsk, phrases: renderPhrases, sos: renderSos }[S.tab] || renderPlan)();
+    ({ plan: renderPlan, cards: renderCards, ask: renderAsk, phrases: renderPhrases, pay: renderPay, sos: renderSos }[S.tab] || renderPlan)();
     clock();
   }
   function go(tab) {
@@ -1060,6 +1215,7 @@
     if (!t) return;
     const d = t.dataset;
     if (d.tab) return go(d.tab);
+    if (S.tab === 'pay' && payClick(t, d)) return;
     if (d.day) { if (d.day === S.day) return fitDay(); if (S.tab !== 'plan') S.tab = 'plan'; return setDay(d.day); }
     if (d.sim) { store.set('sim', d.sim); return setDay(d.sim.slice(0, 10)); }
     if (d.cat) { S.cat = d.cat; S.query = ''; return render(); }
@@ -1148,6 +1304,8 @@
   });
   document.addEventListener('input', (ev) => {
     if (ev.target.id === 'cq') { S.query = ev.target.value; const pos = ev.target.selectionStart; renderCards(); const el = $('#cq'); el.focus(); el.setSelectionRange(pos, pos); }
+    if (ev.target.id === 'payN' && S.payF) S.payF.n = ev.target.value;
+    if (ev.target.id === 'payA' && S.payF) S.payF.a = ev.target.value;
     if (ev.target.id === 'codeIn') store.set('code', ev.target.value.trim());
     if (ev.target.dataset && ev.target.dataset.ed && S.edit) S.edit.draft[ev.target.dataset.ed] = ev.target.value;
     if (ev.target.id === 'placeQ' && S.edit) S.edit.q = ev.target.value;
@@ -1179,7 +1337,7 @@
   window.addEventListener('hashchange', () => { const t = location.hash.slice(1); if (TABS.includes(t) && t !== S.tab) go(t); });
   let rz = null;
   window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => { setSheet(S.sheet); map.invalidateSize(); }, 150); });
-  window.addEventListener('online', runWalkQ);
+  window.addEventListener('online', () => { runWalkQ(); offlineSoon(3000); });
 
   // 시작
   const n0 = nowJST();
@@ -1189,6 +1347,7 @@
   render();
   if (OWNER) fetch('/data/itinerary.json').then((r) => r.json()).then((d) => { IT = d; render(); }).catch(() => {});
   if (!store.get('tutDone', 0)) setTimeout(showTutorial, 400);
+  offlineSoon(8000); setInterval(() => offlineSoon(0), 20 * 60000);
   if (store.get('geo', false) && navigator.permissions) navigator.permissions.query({ name: 'geolocation' }).then((p) => { if (p.state === 'granted') startGeo(false); }).catch(() => {});
   setInterval(() => {
     clock();
