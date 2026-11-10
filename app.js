@@ -1019,8 +1019,13 @@
   function payPeople() {
     const p = PAY();
     if (p.ppl.length) return p.ppl;
-    const m = CL && CL.trip && CL.trip.members ? Object.values(CL.trip.members).map((x) => nm(x.name)).filter(Boolean) : [];
+    const al = p.alias || {}, m = CL && CL.trip && CL.trip.members ? Object.entries(CL.trip.members).map(([u, x]) => nm(al[u] || x.name)).filter(Boolean) : [];
     return m.length ? [...new Set(m)] : [nm(USER && USER.name) || '나'];
+  }
+  // 계정 이름 대신 고친 이름을 써요 (EDITS._pay.alias[uid] = 이름)
+  function myPayName() {
+    const p = PAY(), uid = CL && CL.user && CL.user.uid;
+    return nm(uid && (p.alias || {})[uid]) || nm(CL && CL.trip && CL.trip.members && uid && (CL.trip.members[uid] || {}).name) || nm(USER && USER.name);
   }
   function fxRate() { const p = PAY(); return p.fx || (store.get('fx', null) || {}).r || 9.2; }
   function fetchFx() {
@@ -1056,7 +1061,7 @@
     fetchFx();
     const p = PAY(), ppl = payPeople(), fx = fxRate(), r = settle(), ro = VIEW;
     const f = S.payF = S.payF || { c: 'JPY', n: '', a: '' };
-    if (!ppl.includes(f.by)) { const me = nm(CL && CL.trip && CL.trip.members && CL.user && (CL.trip.members[CL.user.uid] || {}).name) || nm(USER && USER.name); f.by = ppl.includes(me) ? me : ppl[0]; }
+    if (!ppl.includes(f.by)) { const me = myPayName(); f.by = ppl.includes(me) ? me : ppl[0]; }
     if (f.for) f.for = f.for.filter((x) => ppl.includes(x));
     const forSel = f.for && f.for.length ? f.for : ppl;
     const byDay = {}; p.items.forEach((it) => (byDay[it.d] = byDay[it.d] || []).push(it));
@@ -1074,7 +1079,7 @@
         <div class="k">같이 쓴 사람 (나눠 낼 사람)</div><div class="chips">${ppl.map((x) => `<button class="chip${forSel.includes(x) ? ' on' : ''}" data-payfor="${esc(x)}">${esc(x)}</button>`).join('')}</div>
         <p class="paymsg" id="payMsg"></p>
         <button class="btn" id="payAdd" style="width:100%">넣기</button></div>
-      <div class="card"><div class="k">같이 간 사람</div><div class="chips">${ppl.map((x) => `<span class="chip">${esc(x)}${ppl.length > 1 && !used(x) ? ` <button class="x" data-paydel="${esc(x)}" aria-label="${esc(x)} 빼기">×</button>` : ''}</span>`).join('')}</div>
+      <div class="card"><div class="k">같이 간 사람</div><div class="muted">이름을 누르면 바꿀 수 있어요.</div><div class="chips">${ppl.map((x) => `<span class="chip"><button class="linkname" data-payren="${esc(x)}">${esc(x)} ${I('edit')}</button>${ppl.length > 1 && !used(x) ? ` <button class="x" data-paydel="${esc(x)}" aria-label="${esc(x)} 빼기">×</button>` : ''}</span>`).join('')}</div>
         <div class="row"><input type="text" id="payP" maxlength="12" placeholder="이름" style="flex:1;width:auto;min-width:0"><button class="btn ghost sm" id="payPAdd">사람 추가</button></div></div>`}
       ${Object.keys(byDay).sort().reverse().map((dd) => `<div class="k" style="margin-top:14px">${md(dd)} (${wd(dd)})</div>` + byDay[dd].slice().reverse().map((it) => {
         const fl = it.for && it.for.length ? it.for : ppl;
@@ -1107,6 +1112,20 @@
       if (p.ppl.includes(v)) { toast('이미 있는 이름이에요.'); return true; }
       if (p.ppl.length >= 20) { toast('20명까지 넣을 수 있어요.'); return true; }
       p.ppl.push(v); if (f.for) f.for.push(v); savePay(); renderPay(); return true;
+    }
+    if (d.payren) {
+      const old = d.payren, v = nm(prompt('이 사람을 뭐라고 부를까요?', old));
+      if (!v || v === old) return true;
+      const p = PAY(); if (!p.ppl.length) p.ppl = payPeople().slice();
+      if (p.ppl.includes(v)) { toast('이미 있는 이름이에요.'); return true; }
+      const sw = (x) => (x === old ? v : x);
+      p.ppl = p.ppl.map(sw);
+      p.items.forEach((it) => { it.by = sw(it.by); if (it.for) it.for = it.for.map(sw); });
+      // 같이 편집하는 사람의 계정 이름을 바꾼 거면 기억해 둬요
+      const ms = (CL && CL.trip && CL.trip.members) || {}, al = p.alias = p.alias || {};
+      Object.entries(ms).forEach(([u, x]) => { if (nm(al[u] || x.name) === old) al[u] = v; });
+      if (f.by === old) f.by = v; if (f.for) f.for = f.for.map(sw);
+      savePay(); renderPay(); return true;
     }
     if (d.paydel) { const p = PAY(); if (!p.ppl.length) p.ppl = payPeople().slice(); p.ppl = p.ppl.filter((x) => x !== d.paydel); savePay(); renderPay(); return true; }
     if (t.id === 'fxEdit') {
