@@ -5,6 +5,7 @@
 
   // ---------- 아이콘: 단색 선 아이콘 (글자색을 따라가요) ----------
   const IC = {
+    check: '<path d="M5 12.5l4.5 4.5L19 7"/>',
     coin: '<circle cx="12" cy="12" r="8.5"/><path d="M8.8 7.8 12 12l3.2-4.2M12 12v5M9.3 12.6h5.4M9.3 15h5.4"/>',
     down: '<path d="M12 4v11M7.5 10.5 12 15l4.5-4.5M5 19.5h14"/>',
     train: '<rect x="5" y="3.5" width="14" height="13" rx="3"/><path d="M5 10h14M8.5 13.2h.01M15.5 13.2h.01M8.5 16.5 6.5 20.5M15.5 16.5l2 4"/>',
@@ -213,7 +214,7 @@
   loadTrip();
 
   const FAR = new Set(['나리타공항', '간사이공항 T1', '에노덴 후지사와역']);
-  const dayOf = (date) => R.DAYS.find((d) => d.date === date) || R.DAYS[0];
+  const dayOf = (date) => (date === 'prep' ? null : R.DAYS.find((d) => d.date === date) || R.DAYS[0]);
   const todoList = (d, s) => s.todo || (R.TODO[d.id] || {})[s.key || s[1]] || [];
   const tdKey = (d, s, k) => 'todo|' + d.id + '|' + (s.key || s[1]) + '|' + (s.todo ? 'e' : '') + k;
   const tdGet = (k) => { try { return localStorage.getItem(NS + k) === '1'; } catch (e) { return false; } };
@@ -504,7 +505,7 @@
     $('#peek').innerHTML = cs ? `<b>지금 ${esc(cs[0])}</b> · ${esc(cs[1])}` : inTrip(n) && st ? `<b>${cur ? '지금' : '다음'} ${esc(st.s)}</b> · ${esc(st.todo)}` : n.d < TRIP_START ? '<b>여행 전</b> · 위로 올려서 일정 보기' : '여행이 끝났어요';
   }
   function renderDays() {
-    $('#days').innerHTML = R.DAYS.map((d) => `<button class="dchip ${d.date === S.day ? 'on' : ''}" data-day="${d.date}">${esc(d.tab)}</button>`).join('');
+    $('#days').innerHTML = (R.DAYS.length ? `<button class="dchip prepchip ${S.day === 'prep' ? 'on' : ''}" data-day="prep">여행 전</button>` : '') + R.DAYS.map((d) => `<button class="dchip ${d.date === S.day ? 'on' : ''}" data-day="${d.date}">${esc(d.tab)}</button>`).join('');
     const on = $('#days .on'); if (on) on.scrollIntoView({ inline: 'nearest', block: 'nearest' });
   }
   function showBig(ja, ko) {
@@ -758,6 +759,7 @@
   }
   function renderPlan() {
     const n = nowJST();
+    if (S.day === 'prep' && UT) { view.innerHTML = prepHTML() + acctHTML(); return; }
     const d = dayOf(S.day);
     if (!d) { view.innerHTML = importHTML() + (S.imp && S.imp.plan ? '' : newTripHTML()) + acctHTML(); return; }
     const { cur, next } = findNow(n);
@@ -875,7 +877,7 @@
   function buildContext(q) {
     const n = nowJST();
     const { cur, next } = findNow(n);
-    const day = inTrip(n) ? n.d : (S.day || TRIP_START);
+    const day = inTrip(n) ? n.d : (S.day && S.day !== 'prep' ? S.day : TRIP_START);
     const line = (x) => `${x.s}-${x.e} ${x.place} | ${x.todo}${x.board ? ' | 타는곳: ' + x.board : ''}${x.alight ? ' | 내리는곳: ' + x.alight : ''}${x.memo ? ' | 메모: ' + x.memo : ''}`;
     const todays = IT.filter((x) => x.d === day).map(line).join('\n');
     const stay = stayOn(day);
@@ -1008,6 +1010,45 @@
       ${unsolved.length ? `<div class="card"><div class="k">AI로 해결 못 한 질문 (${unsolved.length})</div>${unsolved.slice(-5).reverse().map((u) => `<div class="muted" style="margin-top:6px">• ${esc(u.q)}</div>`).join('')}<div class="muted" style="margin-top:6px">현지인·전문가 연결은 준비 중이에요. 이 목록은 이 휴대폰에만 저장돼요.</div></div>` : ''}`;
   }
 
+  // ---------- 여행 전 준비할 것 ----------
+  // 일정과 같은 곳(EDITS._prep)에 저장해서 같이 편집하는 사람과 함께 체크해요
+  // EDITS._prep = [{ id, g: 묶음, t: 할 일, due: 언제까지(선택), done: true/false }]
+  const PREP_DEFAULT = [
+    ['출발 전 등록', 'Visit Japan Web 등록 (입국·세관 QR)'], ['출발 전 등록', 'Suica: 아이폰 지갑에 추가 또는 공항에서 웰컴 Suica'],
+    ['출발 전 등록', 'eSIM·포켓와이파이'], ['출발 전 등록', '여행자 보험'], ['출발 전 등록', '환전·트래블카드 충전'],
+    ['챙길 것', '여권 (유효기간 확인)'], ['챙길 것', '110V 어댑터 (11자 돼지코)'], ['챙길 것', '보조배터리 (기내 반입)']
+  ];
+  function prepList() {
+    if (!Array.isArray(EDITS._prep)) EDITS._prep = PREP_DEFAULT.map(([g, t], i) => ({ id: 'd' + i, g, t, done: false }));
+    return EDITS._prep;
+  }
+  function prepHTML() {
+    const L = prepList(), ro = VIEW, done = L.filter((x) => x.done).length, groups = [];
+    L.forEach((x) => { if (!groups.includes(x.g || '기타')) groups.push(x.g || '기타'); });
+    return `<div class="card"><div class="k">${I('check')} 여행 전 준비할 것</div>
+        <div class="big" style="margin-bottom:2px">${done} / ${L.length} 완료</div>
+        <div class="prepbar"><i style="width:${L.length ? Math.round(done / L.length * 100) : 0}%"></i></div>
+        <div class="muted">예약·결제·등록할 것을 모아 두는 곳이에요. 같이 편집하는 사람과 함께 체크돼요.</div></div>
+      ${groups.map((g) => `<div class="k" style="margin-top:14px">${esc(g)}</div><div class="card preplist">${L.filter((x) => (x.g || '기타') === g).map((x) => `<div class="prep${x.done ? ' done' : ''}">
+          <button class="pchk" data-prep="${esc(x.id)}" role="checkbox" aria-checked="${!!x.done}" ${ro ? 'disabled' : ''}>${x.done ? I('check') : ''}</button>
+          <div class="pt"><span>${esc(x.t)}</span>${x.due ? `<div class="muted">${esc(x.due)}</div>` : ''}</div>
+          ${ro ? '' : `<button class="x" data-preprm="${esc(x.id)}" aria-label="지우기">×</button>`}</div>`).join('')}</div>`).join('')}
+      ${ro ? '' : `<div class="card"><div class="k">준비할 것 추가</div>
+        <input type="text" id="prepT" maxlength="80" placeholder="예: 시부야 스카이 예약">
+        <div class="row" style="margin-top:8px"><input type="text" id="prepD" maxlength="40" placeholder="언제·메모 (선택)" style="flex:1;width:auto;min-width:0"><button class="btn sm" id="prepAdd">추가</button></div></div>`}`;
+  }
+  function prepClick(t, d) {
+    if (d.prep) { const x = prepList().find((y) => y.id === d.prep); if (x) { x.done = !x.done; store.set('edits', EDITS); renderPlan(); } return true; }
+    if (d.preprm) { if (!confirm('이 항목을 지울까요?')) return true; EDITS._prep = prepList().filter((y) => y.id !== d.preprm); store.set('edits', EDITS); renderPlan(); return true; }
+    if (t.id === 'prepAdd') {
+      const v = ($('#prepT').value || '').trim(); if (!v) return true;
+      const L = prepList(); if (L.length >= 80) { toast('80개까지 넣을 수 있어요.'); return true; }
+      L.push({ id: Date.now().toString(36), g: '내가 추가한 것', t: v.slice(0, 80), due: ($('#prepD').value || '').trim().slice(0, 40), done: false });
+      store.set('edits', EDITS); renderPlan(); return true;
+    }
+    return false;
+  }
+
   // ---------- 경비 정산 ----------
   // 일정과 같은 곳(EDITS._pay)에 저장해서, 같이 편집하는 사람에게도 바로 보여요
   // EDITS._pay = { ppl: [이름], fx: 직접 넣은 환율(1엔=원), items: [{ id, d, n, a, c: 'JPY'|'KRW', by, for: [이름] }] }
@@ -1101,7 +1142,7 @@
       if (!(a > 0) || a > 1e9) { msg.textContent = '금액을 숫자로 넣어 주세요.'; return true; }
       const p = PAY(); if (!p.ppl.length) p.ppl = payPeople().slice();
       const nn = nowJST();
-      p.items.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 5), d: inTrip(nn) ? nn.d : (S.day || TRIP_START || nn.d), n: n.slice(0, 40), a: Math.round(a * 100) / 100, c: f.c, by: f.by, for: (f.for && f.for.length ? f.for : p.ppl).slice() });
+      p.items.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 5), d: inTrip(nn) ? nn.d : (S.day && S.day !== 'prep' ? S.day : TRIP_START || nn.d), n: n.slice(0, 40), a: Math.round(a * 100) / 100, c: f.c, by: f.by, for: (f.for && f.for.length ? f.for : p.ppl).slice() });
       f.n = ''; f.a = ''; f.for = null; savePay(); toast('넣었어요.'); renderPay(); return true;
     }
     if (d.payrm) { if (!confirm('이 경비를 지울까요?')) return true; const p = PAY(); p.items = p.items.filter((x) => x.id !== d.payrm); savePay(); renderPay(); return true; }
@@ -1220,6 +1261,7 @@
   }
   function setDay(date, fit) {
     S.day = date; S.sel = null; S.xp = new Set(); drawnDay = null; closeEditor(); render(); view.scrollTop = 0;
+    if (date === 'prep' && !isDesk()) setSheet('full');
     if (fit === false) return;
   }
 
@@ -1234,6 +1276,7 @@
     const d = t.dataset;
     if (d.tab) return go(d.tab);
     if (S.tab === 'pay' && payClick(t, d)) return;
+    if (S.day === 'prep' && S.tab === 'plan' && prepClick(t, d)) return;
     if (d.day) { if (d.day === S.day) return fitDay(); if (S.tab !== 'plan') S.tab = 'plan'; return setDay(d.day); }
     if (d.sim) { store.set('sim', d.sim); return setDay(d.sim.slice(0, 10)); }
     if (d.cat) { S.cat = d.cat; S.query = ''; return render(); }
