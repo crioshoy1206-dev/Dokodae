@@ -1028,18 +1028,31 @@
     return `<div class="card"><div class="k">${I('check')} 여행 전 준비할 것</div>
         <div class="big" style="margin-bottom:2px">${done} / ${L.length} 완료</div>
         <div class="prepbar"><i style="width:${L.length ? Math.round(done / L.length * 100) : 0}%"></i></div>
-        <div class="muted">예약·결제·등록할 것을 모아 두는 곳이에요. 같이 편집하는 사람과 함께 체크돼요.</div></div>
+        <div class="muted">예약·결제·등록할 것을 모아 두는 곳이에요. 항목을 누르면 고칠 수 있고, 같이 편집하는 사람과 함께 체크돼요.</div></div>
       ${groups.map((g) => `<div class="k" style="margin-top:14px">${esc(g)}</div><div class="card preplist">${L.filter((x) => (x.g || '기타') === g).map((x) => `<div class="prep${x.done ? ' done' : ''}">
           <button class="pchk" data-prep="${esc(x.id)}" role="checkbox" aria-checked="${!!x.done}" ${ro ? 'disabled' : ''}>${x.done ? I('check') : ''}</button>
-          <div class="pt"><span>${esc(x.t)}</span>${x.due ? `<div class="muted">${esc(x.due)}</div>` : ''}</div>
-          ${ro ? '' : `<button class="x" data-preprm="${esc(x.id)}" aria-label="지우기">×</button>`}</div>`).join('')}</div>`).join('')}
+          ${S.prepEdit === x.id ? `<div class="pt pedit">
+            <input type="text" id="peT" maxlength="80" value="${esc(x.t)}" placeholder="할 일">
+            <input type="text" id="peD" maxlength="40" value="${esc(x.due || '')}" placeholder="언제·메모 (선택)">
+            <select id="peG">${groups.concat(groups.includes('내가 추가한 것') ? [] : ['내가 추가한 것']).map((o) => `<option${o === (x.g || '기타') ? ' selected' : ''}>${esc(o)}</option>`).join('')}</select>
+            <div class="row" style="margin-top:6px;gap:6px"><button class="btn sm" id="peSave">저장</button><button class="btn ghost sm" id="peCancel">취소</button><button class="btn danger sm" data-preprm="${esc(x.id)}">지우기</button></div></div>`
+          : `<button class="pt" ${ro ? 'disabled' : `data-prepedit="${esc(x.id)}"`}><span>${esc(x.t)}</span>${x.due ? `<div class="muted">${esc(x.due)}</div>` : ''}</button>
+          ${ro ? '' : `<button class="x pe" data-prepedit="${esc(x.id)}" aria-label="고치기">${I('edit')}</button>`}`}</div>`).join('')}</div>`).join('')}
       ${ro ? '' : `<div class="card"><div class="k">준비할 것 추가</div>
         <input type="text" id="prepT" maxlength="80" placeholder="예: 시부야 스카이 예약">
         <div class="row" style="margin-top:8px"><input type="text" id="prepD" maxlength="40" placeholder="언제·메모 (선택)" style="flex:1;width:auto;min-width:0"><button class="btn sm" id="prepAdd">추가</button></div></div>`}`;
   }
   function prepClick(t, d) {
     if (d.prep) { const x = prepList().find((y) => y.id === d.prep); if (x) { x.done = !x.done; store.set('edits', EDITS); renderPlan(); } return true; }
-    if (d.preprm) { if (!confirm('이 항목을 지울까요?')) return true; EDITS._prep = prepList().filter((y) => y.id !== d.preprm); store.set('edits', EDITS); renderPlan(); return true; }
+    if (d.prepedit) { S.prepEdit = d.prepedit; renderPlan(); const el = $('#peT'); if (el) el.focus(); return true; }
+    if (t.id === 'peCancel') { S.prepEdit = null; renderPlan(); return true; }
+    if (t.id === 'peSave') {
+      const x = prepList().find((y) => y.id === S.prepEdit), v = ($('#peT').value || '').trim();
+      if (!v) { toast('할 일을 적어 주세요.'); return true; }
+      if (x) { x.t = v.slice(0, 80); x.due = ($('#peD').value || '').trim().slice(0, 40); x.g = $('#peG').value || x.g; store.set('edits', EDITS); }
+      S.prepEdit = null; renderPlan(); return true;
+    }
+    if (d.preprm) { S.prepEdit = null; if (!confirm('이 항목을 지울까요?')) return true; EDITS._prep = prepList().filter((y) => y.id !== d.preprm); store.set('edits', EDITS); renderPlan(); return true; }
     if (t.id === 'prepAdd') {
       const v = ($('#prepT').value || '').trim(); if (!v) return true;
       const L = prepList(); if (L.length >= 80) { toast('80개까지 넣을 수 있어요.'); return true; }
