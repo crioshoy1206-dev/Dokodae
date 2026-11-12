@@ -1,5 +1,5 @@
-const V = 'th-v25';
-const FILES = ['/', '/index.html', '/boot.js', '/cloud.js', '/vendor/firebase.js', '/app.js', '/data/cards.js', '/manifest.json', '/icon-192.png', '/apple-touch-icon.png', '/favicon.png', '/fonts/gn-kill-gothic-ub-kana.woff2'];
+const V = 'th-v26';
+const FILES = ['/', '/index.html', '/boot.js', '/cloud.js', '/vendor/firebase.js', '/app.js', '/data/cards.js', '/manifest.json', '/icon-192.png', '/icon-512.png', '/apple-touch-icon.png', '/favicon.png', '/fonts/gn-kill-gothic-ub-kana.woff2'];
 const TILES = 'th-tiles';
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(V).then((c) => c.addAll(FILES)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', (e) => { e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== V && k !== TILES).map((k) => caches.delete(k)))).then(() => self.clients.claim())); });
