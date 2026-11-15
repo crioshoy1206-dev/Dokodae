@@ -79,6 +79,6 @@ module.exports = async function handler(req, res) {
     return res.status(200).json({ text });
   } catch (e) {
     console.error(e);
-    return res.status(500).json({ error: 'server', message: '서버 오류가 났어요.' });
+    return res.status(500).json({ error: 'server', message: '서버에 잠깐 문제가 생겼어요. 잠시 후 다시 물어봐 주세요.' });
   }
 };

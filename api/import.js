@@ -25,7 +25,7 @@ module.exports = async function handler(req, res) {
   const SS = require('./_session');
   if (SS.configured() && !SS.read(req)) return res.status(401).json({ error: 'need_login', message: '로그인하면 AI로 일정을 가져올 수 있어요.' });
   const key = process.env.ANTHROPIC_API_KEY;
-  if (!key) return res.status(503).json({ error: 'no_key', message: 'AI 키가 아직 설정되지 않았어요. 직접 만들기를 써 주세요.' });
+  if (!key) return res.status(503).json({ error: 'no_key', message: 'AI로 일정 가져오기는 아직 준비 중이에요. 아래 새 여행 만들기로 날짜를 정하고 장소를 하나씩 넣어 주세요.' });
 
   let body = req.body;
   if (typeof body === 'string') { try { body = JSON.parse(body); } catch { body = {}; } }
