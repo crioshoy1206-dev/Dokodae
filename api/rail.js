@@ -113,6 +113,7 @@ async function route(a, b, ln) {
 }
 
 module.exports = async function handler(req, res) {
+  if (req.query.probe) { const t = Date.now(); try { const j = await overpass('[out:json][timeout:10];node(1);out;'); return res.status(200).json({ ok: 1, ms: Date.now() - t, n: j.elements.length }); } catch (e) { return res.status(200).json({ ok: 0, ms: Date.now() - t, why: e.message }); } }
   const a = num(req.query.a), b = num(req.query.b), ln = String(req.query.ln || '').slice(0, 60);
   if (!a || !b) return res.status(400).json({ error: 'a, b 좌표가 필요해요' });
   if (dist(a, b) > 150000) return res.status(200).json({ p: [] });
