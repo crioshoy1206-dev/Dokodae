@@ -1037,16 +1037,24 @@
 
   // ---------- 상황 카드 ----------
   const seg2 = (on) => `<div class="seg"><button data-tab="cards" class="${on === 'cards' ? 'on' : ''}">${I('compass')} 상황카드</button><button data-tab="phrases" class="${on === 'phrases' ? 'on' : ''}">${I('speak')} 보여주기 문장</button></div>`;
-  function renderCards() {
-    const list = S.query ? searchCards(S.query, 30) : window.CARDS.filter((c) => S.cat === 'all' || c.cat === S.cat);
-    const chips = [{ id: 'all', name: '전체', icon: '' }, ...window.CATS].map((c) => `<button class="chip ${S.cat === c.id && !S.query ? 'on' : ''}" data-cat="${c.id}">${I(c.icon)} ${esc(c.name)}</button>`).join('');
+  // 검색창은 그대로 두고 아래 목록만 다시 그려요 (한글 입력이 자모로 쪼개지지 않게)
+  function renderCards(listOnly) {
+    const cq = $('#cq');
+    if (listOnly && cq) { $('#cchips').innerHTML = cardChips(); $('#clist').innerHTML = cardList(); return; }
     view.innerHTML = `${seg2('cards')}<input type="search" id="cq" placeholder="무슨 상황이에요? 예: 식권기, 환승, 온천" value="${esc(S.query)}">
-      <div class="chips" style="margin-top:8px">${chips}</div>
-      <div id="clist">${list.map((c) => `<div class="card" id="c-${c.id}">
+      <div class="chips" id="cchips" style="margin-top:8px">${cardChips()}</div>
+      <div id="clist">${cardList()}</div>`;
+  }
+  function cardChips() {
+    return [{ id: 'all', name: '전체', icon: '' }, ...window.CATS].map((c) => `<button class="chip ${S.cat === c.id && !S.query ? 'on' : ''}" data-cat="${c.id}">${I(c.icon)} ${esc(c.name)}</button>`).join('');
+  }
+  function cardList() {
+    const list = S.query ? searchCards(S.query, 30) : window.CARDS.filter((c) => S.cat === 'all' || c.cat === S.cat);
+    return `${list.map((c) => `<div class="card" id="c-${c.id}">
         <div class="row" data-toggle="${c.id}" style="justify-content:space-between;cursor:pointer;flex-wrap:nowrap"><div><div class="k">${I(window.CATS.find((x) => x.id === c.cat).icon)} ${window.CATS.find((x) => x.id === c.cat).name}</div><b>${esc(c.title)}</b></div><span class="cv">${I(S.open === c.id ? 'up' : 'chev')}</span></div>
         ${S.open === c.id ? cardBody(c) : `<div class="muted" style="margin-top:4px">${esc(c.sum)}</div>`}
       </div>`).join('')}
-      <div class="card"><div class="muted">찾는 상황이 없나요?</div><button class="btn" style="margin-top:8px" data-askq="1">AI에게 바로 묻기</button></div></div>`;
+      <div class="card"><div class="muted">찾는 상황이 없나요?</div><button class="btn" style="margin-top:8px" data-askq="1">AI에게 바로 묻기</button></div>`;
   }
 
   // ---------- AI 묻기 ----------
@@ -1618,7 +1626,7 @@
     if (t.id === 'layerBtn') return switchTiles();
   });
   document.addEventListener('input', (ev) => {
-    if (ev.target.id === 'cq') { S.query = ev.target.value; const pos = ev.target.selectionStart; renderCards(); const el = $('#cq'); el.focus(); el.setSelectionRange(pos, pos); }
+    if (ev.target.id === 'cq') { S.query = ev.target.value; renderCards(true); }
     if (ev.target.id === 'payN' && S.payF) S.payF.n = ev.target.value;
     if (ev.target.id === 'payA' && S.payF) {
       S.payF.a = ev.target.value; const c = amtCur(ev.target.value);
