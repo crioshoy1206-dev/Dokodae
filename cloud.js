@@ -176,10 +176,12 @@
   }
   // 다른 사람이 고치면 바로 반영해요
   function listen(id) {
-    const onErr = () => {};
+    // 여행에서 내보내지면 더는 읽을 수 없어요
+    const onErr = (e) => { if (st.tripId === id && e && e.code === 'permission-denied' && st.role !== 'view') gone(true); };
     st.unsub.push(F.onSnapshot(tripRef(id), (snap) => {
       if (st.tripId !== id) return;
       if (!snap.exists()) { if (!snap.metadata.fromCache) gone(); return; }
+      if (st.role !== 'view' && !snap.metadata.fromCache && !(snap.data().memberIds || []).includes(user.uid)) return gone(true);
       st.trip = snap.data(); stash(); remote();
     }, onErr));
     if (st.role !== 'view' && st.privOk) st.unsub.push(F.onSnapshot(privRef(id), (snap) => {
@@ -198,12 +200,14 @@
     if (same(view, prev)) return;
     emit(view, { pay: !same((prev || {})._pay, view._pay), plan: !same({ ...(prev || {}), _pay: 0 }, { ...view, _pay: 0 }) });
   }
-  function gone() {
+  function gone(kicked) {
     const id = st.tripId;
+    if (!id) return;
+    st.unsub.forEach((u) => u()); st.unsub = [];
     clearTimeout(st.timer); clearTimeout(st.retryT); st.mine = null; st.force = false;
     lsSet(pendKey(id), null); lsSet(stashKey(id), null);
     if (getCur() === id) setCur(null);
-    st.listeners.forEach((fn) => { try { fn(null, null, { gone: true }); } catch (e) {} });
+    st.listeners.forEach((fn) => { try { fn(null, null, { gone: true, kicked: !!kicked }); } catch (e) {} });
   }
 
   // 앱에서 일정을 고치면 잠깐 모았다가 저장해요
@@ -285,6 +289,13 @@
     if (!key) throw new Error('no-key');
     return base + '&j=' + key;
   }
+  // 만든 사람만: 함께 편집하던 사람을 내보내고, 예전 초대 링크로 다시 못 들어오게 초대 키를 바꿔요
+  async function kick(uid) {
+    if (st.role !== 'owner' || !uid || uid === user.uid) throw Object.assign(new Error('denied'), { code: 'permission-denied' });
+    const id = st.tripId;
+    await F.updateDoc(tripRef(id), { memberIds: F.arrayRemove(uid), ['members.' + uid]: F.deleteField(), updatedAt: F.serverTimestamp(), updatedBy: user.uid });
+    if (st.privOk) await F.setDoc(privRef(id), { editKey: rand(20) }, { merge: true });
+  }
   async function stopPublic() { await F.updateDoc(tripRef(st.tripId), { public: false }); st.trip.public = false; }
   async function remove() {
     const id = st.tripId;
@@ -309,7 +320,7 @@
   function switchTo(id) { setCur(id); }
 
   window.DK_CLOUD = {
-    init, signIn, signOut, idToken, list, create, join, open, save, flush, shareLink, stopPublic, remove, close, switchTo, getCur, merge3,
+    init, signIn, signOut, idToken, list, create, join, open, save, flush, shareLink, stopPublic, kick, remove, close, switchTo, getCur, merge3,
     onRemote: (fn) => st.listeners.push(fn),
     onStatus: (fn) => st.status.push(fn),
     get user() { return user; }, get tripId() { return st.tripId; }, get role() { return st.role; },

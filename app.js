@@ -186,7 +186,7 @@
       // 만든 사람이 여행을 지웠어요
       try { ['trip', 'edits'].forEach((k) => localStorage.removeItem(NS + k)); } catch (e) {}
       if (CL) CL.close();
-      reopenTrip(); toast('이 여행은 만든 사람이 지웠어요. 더는 고칠 수 없어요.', null, 6000);
+      reopenTrip(); toast(info.kicked ? '만든 사람이 이 여행에서 나를 내보냈어요.' : '이 여행은 만든 사람이 지웠어요. 더는 고칠 수 없어요.', null, 6000);
       return;
     }
     try { localStorage.setItem(NS + 'trip', JSON.stringify(trip)); localStorage.setItem(NS + 'edits', JSON.stringify(edits)); } catch (e) {}
@@ -801,7 +801,8 @@
         ${CL.role === 'owner' ? `<button class="btn ghost sm" id="shareView">${I('map')} 보기 전용 링크</button>` : ''}
         ${CL.role === 'owner' && CL.trip && CL.trip.public ? '<button class="tutskip" id="shareStop">보기 링크 끄기</button>' : ''}
       </div>
-      <div class="muted" style="margin-top:8px">함께하는 사람: ${Object.values((CL.trip && CL.trip.members) || {}).map((m) => esc(m.name || '이름 없음')).join(', ')}</div></div>` : '';
+      <div class="k" style="margin-top:14px">함께하는 사람</div>
+      <div class="mlist">${Object.entries((CL.trip && CL.trip.members) || {}).filter(([u]) => (CL.trip.memberIds || []).includes(u)).map(([u, m]) => `<div class="mrow"><span>${esc(m.name || '이름 없음')}${u === CL.trip.owner ? ' <span class="etag">만든 사람</span>' : ''}${CL.user && u === CL.user.uid ? ' <span class="etag">나</span>' : ''}</span>${CL.role === 'owner' && u !== CL.trip.owner ? `<button class="btn ghost sm" data-kick="${esc(u)}">내보내기</button>` : ''}</div>`).join('')}</div></div>` : '';
     const trips = CL ? `<div class="card" id="acct"><div class="k">내 여행</div><div id="tripList" class="muted">불러오는 중…</div>
       ${UT ? `<button class="btn ghost sm" id="tripNew" style="margin-top:8px">${I('plus')} 새 여행</button>` : ''}</div>` : '';
     if (CL) setTimeout(loadTripList, 0);
@@ -1607,6 +1608,12 @@
       else if (CL) { try { await CL.remove(); } catch (e) { return toast('지우지 못했어요. 인터넷 연결을 확인해 주세요.'); } }
       try { Object.keys(localStorage).filter((k) => k.startsWith(NS + 'todo|') || ['trip', 'edits', 'sim'].some((x) => k === NS + x)).forEach((k) => localStorage.removeItem(k)); } catch (e) {}
       return reopenTrip();
+    }
+    if (d.kick) {
+      const m = ((CL.trip && CL.trip.members) || {})[d.kick] || {}, nm0 = m.name || '이 사람';
+      if (!confirm(`${nm0}님을 이 여행에서 내보낼까요? 더는 일정과 경비를 볼 수 없어요. 예전 초대 링크도 막히니, 다른 사람을 부르려면 새 링크를 보내 주세요.`)) return;
+      t.disabled = true;
+      return CL.kick(d.kick).then(() => { toast(`${nm0}님을 내보냈어요.`); renderPlan(); }).catch(() => { t.disabled = false; toast('내보내지 못했어요. 인터넷 연결을 확인해 주세요.'); });
     }
     if (t.id === 'shareEdit') return shareOut('edit');
     if (t.id === 'shareView') return shareOut('view');
