@@ -274,6 +274,7 @@
   // ---------- 노선색 · 역번호 ----------
   // 일정 글에 나온 노선 이름으로 구간 색을 정해요 (실제 노선 표지 색)
   const LINEC = [
+    ['메트로 주오선', '#019A66'], ['오사카 주오선', '#019A66'], ['주오·소부', '#FFD400'],
     ['긴자선', '#F39700'], ['마루노우치', '#E60012'], ['히비야', '#9CAEB7'], ['도자이', '#00A7DB'], ['지요다', '#009944'], ['유라쿠초', '#C1A470'],
     ['한조몬', '#8F76D6'], ['난보쿠', '#00AC9B'], ['후쿠토신', '#9C5E31'], ['아사쿠사선', '#E85298'], ['미타선', '#0079C2'], ['신주쿠선', '#6CBB5A'], ['오에도', '#B6007A'],
     ['야마노테', '#80C241'], ['게이힌토호쿠', '#00B2E5'], ['소부', '#FFD400'], ['주오선', '#F15A22'], ['쾌속', '#F15A22'], ['요코스카', '#0067C0'], ['쇼난신주쿠', '#E21F26'],
@@ -308,7 +309,9 @@
       const nm = (g.ln || '').trim() || GO_NAME[g.m];
       return { c: lineColor(nm) || (g.m === 'rail' ? '#4E5968' : '#8B95A1'), walk: false, label: nm + min };
     }
-    const text = (d.rides[i] || []).concat(todoList(d, s)).join(' ');
+    // 일정 글의 "열차 ○○선: …"은 그 장소에서 타고 떠나는 열차라서, 이 장소로 오는 구간은 앞 장소의 열차예요
+    const rideOf = (x) => x && todoList(d, x).find((t) => /^열차 /.test(t));
+    const pr = rideOf(prev), text = pr ? pr : (d.rides[i] || []).concat(todoList(d, s).filter((t) => !/^열차 /.test(t))).join(' ');
     let hit = null;
     for (const [k, c] of LINEC) { const at = text.indexOf(k); if (at >= 0 && (!hit || at < hit.at)) hit = { at, k, c }; }
     const mm = text.match(/(\d{1,3}(?:\s*[~-]\s*\d{1,3})?)\s*분/);
