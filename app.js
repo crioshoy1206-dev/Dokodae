@@ -457,6 +457,44 @@
     walkBusy = false;
   }
 
+  // 열차: 처음엔 직선, 선로 데이터로 같은 노선 선로를 따라 다시 그려요 (한 번 찾은 모양은 기기에 저장)
+  const RAILC = {}, railQ = []; let railBusy = false;
+  function railLine(a, b, ln, rl, lg, bag) {
+    const k = 'rail|' + [a.lat, a.lng, b.lat, b.lng].map((v) => v.toFixed(4)).join(',') + '|' + ln;
+    const apply = (p) => {
+      if (!p || p.length < 2 || !rl._map) return;
+      rl.setLatLngs(p);
+      // 역과 일정 위치가 떨어져 있으면 그 사이는 점선으로 이어요
+      [[a, p[0]], [p[p.length - 1], b]].forEach(([x, y]) => {
+        if (L.latLng(x).distanceTo(y) < 60) return;
+        bag.push(L.polyline([x, y], { color: lg.c, weight: 4, opacity: 0.9, dashArray: '2 7', lineCap: 'round', rc: lg.c }).addTo(layer).bindTooltip(lg.label, { sticky: true }));
+      });
+      paintLegs();
+    };
+    let p = RAILC[k]; if (!p) { try { p = JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) {} }
+    if (p) { RAILC[k] = p; apply(p); return; }
+    railQ.push({ k, a, b, ln, apply }); runRailQ();
+  }
+  // 선로 데이터(rail.js + /data/rail/*.json)는 열차 구간을 처음 그릴 때 받아요
+  let railLib = null;
+  const loadRail = () => railLib || (railLib = new Promise((ok) => {
+    if (window.DKRail) return ok(window.DKRail);
+    const sc = document.createElement('script'); sc.src = '/rail.js'; sc.onload = () => { map.attributionControl.addAttribution('선로: 국토교통성 국토수치정보(철도)'); ok(window.DKRail || null); }; sc.onerror = () => { railLib = null; ok(null); }; document.head.appendChild(sc);
+  }));
+  async function runRailQ() {
+    if (railBusy) return; railBusy = true;
+    const R = await loadRail();
+    while (R && railQ.length) {
+      const j = railQ.shift();
+      if (RAILC[j.k]) { j.apply(RAILC[j.k]); continue; }
+      try {
+        const p = (await R.route([j.a.lat, j.a.lng], [j.b.lat, j.b.lng], j.ln)).map((q) => [+q[0].toFixed(5), +q[1].toFixed(5)]);
+        if (p.length) { RAILC[j.k] = p; try { localStorage.setItem(j.k, JSON.stringify(p)); } catch (e) {} j.apply(p); }
+      } catch (e) {}
+    }
+    railBusy = false;
+  }
+
   function drawDay(d, fit) {
     drawnDay = d.id; layer.clearLayers(); pickLayer.clearLayers(); markers = {}; fitPts = [];
     const n = nowJST(), ci = curStop(d, n);
@@ -470,7 +508,9 @@
       const g = to != null && d.stops[to] && d.stops[to].go;
       if (g && g.m && g.m !== 'walk') {
         const lg = legOf(d, to, null), rl = L.polyline([last, p], { color: lg.c, weight: 5, opacity: 0.9, lineCap: 'round', rc: lg.c, dashArray: g.m === 'rail' ? null : '2 8' }).addTo(layer).bindTooltip(lg.label, { sticky: true });
-        (legs[to] = legs[to] || []).push(rl); return;
+        const bag = (legs[to] = legs[to] || []); bag.push(rl);
+        if (g.m === 'rail') railLine(last, p, g.ln || '', rl, lg, bag);
+        return;
       }
       const ln = (dist <= 2500 || (g && g.m === 'walk')) ? walkLine(last, p, LEG_OFF, layer)
         : L.polyline([last, p], { color: LEG_OFF, weight: 4, opacity: 0.75, dashArray: '10 8', lineCap: 'round' }).addTo(layer)
