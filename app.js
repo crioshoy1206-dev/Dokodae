@@ -287,6 +287,20 @@
   const TOKYO_C = { G: '#F39700', M: '#E60012', Mb: '#E60012', H: '#9CAEB7', T: '#00A7DB', C: '#009944', Y: '#C1A470', Z: '#8F76D6', N: '#00AC9B', F: '#9C5E31', A: '#E85298', I: '#0079C2', S: '#6CBB5A', E: '#B6007A',
     JY: '#80C241', JK: '#00B2E5', JB: '#FFD400', JC: '#F15A22', JO: '#0067C0', JS: '#E21F26', JA: '#00AC9A', KS: '#005AAA', OH: '#2288CC', OE: '#2288CC', EN: '#2E8B57', KK: '#E5171F', TY: '#DA0442', DT: '#DA0442', KO: '#DD0077', SI: '#00A0DE', TS: '#0F378E', U: '#1E50A2', R: '#00418E' };
   const OSAKA_C = { M: '#E5171F', T: '#522886', Y: '#0078BA', C: '#019A66', S: '#E44D93', K: '#814721', N: '#A9CC51', I: '#EE7B1A', P: '#00A3D9', JR: '#F18C43', O: '#F18C43', NK: '#F27420', HK: '#7B2F2F', HS: '#0060B6', KH: '#00754A' };
+  // 실제 노선 색은 너무 쨍해서 앱 톤에 맞게 채도를 낮추고 밝기를 고르게 맞춰요 (색 구분은 그대로)
+  const DARKC = window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches;
+  function tone(hex) {
+    const n = parseInt(hex.slice(1), 16), r = (n >> 16) / 255, g = ((n >> 8) & 255) / 255, b = (n & 255) / 255;
+    const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, d = mx - mn;
+    let h = 0, s = d ? d / (1 - Math.abs(2 * l - 1)) : 0;
+    if (d) h = mx === r ? ((g - b) / d + 6) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+    s = s * 0.6; const L2 = Math.min(0.66, Math.max(0.34, (DARKC ? 0.62 : 0.45) + (l - 0.5) * 0.3));
+    const c = (1 - Math.abs(2 * L2 - 1)) * s, x = c * (1 - Math.abs((h % 2) - 1)), m = L2 - c / 2;
+    const [R, G, B] = h < 1 ? [c, x, 0] : h < 2 ? [x, c, 0] : h < 3 ? [0, c, x] : h < 4 ? [0, x, c] : h < 5 ? [x, 0, c] : [c, 0, x];
+    return '#' + [R, G, B].map((v) => Math.round((v + m) * 255).toString(16).padStart(2, '0')).join('');
+  }
+  LINEC.forEach((e) => { e[1] = tone(e[1]); });
+  [TOKYO_C, OSAKA_C].forEach((t) => Object.keys(t).forEach((k) => { t[k] = tone(t[k]); }));
   const isOsaka = (d) => { const s = d && (d.stops || []).find((x) => x && x[3] != null); return !!(s && s[3] < 35.2); };
   // 이미 esc 된 글에서 (G-14) 같은 역번호를 배지로 바꿔요
   function badges(h, osaka) {
@@ -530,8 +544,8 @@
       to = null; walk(pts[0]);
       L.polyline(pts, { color: '#ffffff', weight: 9, opacity: 0.85 }).addTo(layer);
       const rd = R.RIDE[it.join('|')];
-      L.polyline(pts, { color: ln.c, weight: 5, opacity: 1 }).addTo(layer).bindTooltip(`${ln.n} · ${a} → ${b}${rd ? " · '" + rd[1] + "' 방면" : ''}`, { sticky: true });
-      part.slice(1, -1).forEach((x) => L.circleMarker([x[1], x[2]], { radius: 3, color: ln.c, weight: 2, fillColor: '#fff', fillOpacity: 1 }).addTo(layer).bindTooltip(x[0], { permanent: true, direction: 'right', offset: [4, 0], className: 'st' }));
+      L.polyline(pts, { color: tone(ln.c), weight: 5, opacity: 1 }).addTo(layer).bindTooltip(`${ln.n} · ${a} → ${b}${rd ? " · '" + rd[1] + "' 방면" : ''}`, { sticky: true });
+      part.slice(1, -1).forEach((x) => L.circleMarker([x[1], x[2]], { radius: 3, color: tone(ln.c), weight: 2, fillColor: '#fff', fillOpacity: 1 }).addTo(layer).bindTooltip(x[0], { permanent: true, direction: 'right', offset: [4, 0], className: 'st' }));
       last = pts[pts.length - 1];
     });
     d.vis.forEach((i) => {
