@@ -52,30 +52,30 @@ function simplify(pts, tol) {
 }
 
 async function overpass(q) {
-  let last;
-  for (const u of OVERPASS) {
+  // 두 서버에 같이 물어서 먼저 답한 쪽을 써요
+  const one = async (u) => {
+    const ac = new AbortController(), t = setTimeout(() => ac.abort(), 40000);
     try {
-      const ac = new AbortController(), t = setTimeout(() => ac.abort(), 22000);
       const r = await fetch(u, { method: 'POST', body: 'data=' + encodeURIComponent(q), headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': 'dokodae-travel-app' }, signal: ac.signal });
-      clearTimeout(t);
-      if (r.ok) return await r.json();
-      last = new Error('overpass ' + r.status + ' ' + (await r.text()).slice(0, 120));
-    } catch (e) { last = e; }
-  }
-  throw last;
+      if (!r.ok) throw new Error('overpass ' + r.status + ' ' + (await r.text()).slice(0, 120));
+      return await r.json();
+    } finally { clearTimeout(t); }
+  };
+  try { return await Promise.any(OVERPASS.map(one)); } catch (e) { throw (e.errors && e.errors[0]) || e; }
 }
 
 async function route(a, b, ln) {
   const D = dist(a, b);
-  const rad_ = Math.round(Math.min(8000, Math.max(1500, D * 0.3)));
-  const q = `[out:json][timeout:20];way["railway"~"^(rail|subway|light_rail|monorail|narrow_gauge|tram)$"](around:${rad_},${a[0]},${a[1]},${b[0]},${b[1]})->.w;.w out geom;rel(bw.w)["route"~"^(train|subway|light_rail|railway|monorail|tram)$"];out body;`;
+  const keys = JA.filter(([k]) => ln.includes(k)).map(([, j]) => j);
+  const pad = Math.max(0.012, Math.abs(a[0] - b[0]) * 0.2, Math.abs(a[1] - b[1]) * 0.2);
+  const bb = [Math.min(a[0], b[0]) - pad, Math.min(a[1], b[1]) - pad, Math.max(a[0], b[0]) + pad, Math.max(a[1], b[1]) + pad].map((v) => v.toFixed(4)).join(',');
+  const esc = (k) => k.replace(/[\\"]/g, '');
+  const q = `[out:json][timeout:35][bbox:${bb}];way["railway"~"^(rail|subway|light_rail|monorail|narrow_gauge)$"];out geom qt;`
+    + (keys.length ? `rel["route"~"^(train|subway|light_rail|railway|monorail)$"]["name"~"${keys.map(esc).join('|')}"];way(r);out ids qt;` : '');
   const data = await overpass(q);
   const ways = data.elements.filter((e) => e.type === 'way' && e.geometry && e.nodes);
-  const rels = data.elements.filter((e) => e.type === 'relation');
-  // 노선 이름이 맞는 선로는 싸게, 다른 선로는 비싸게 → 같은 노선을 따라가요
-  const keys = JA.filter(([k]) => ln.includes(k)).map(([, j]) => j);
-  const pref = new Set();
-  if (keys.length) rels.forEach((r) => { const nm = [r.tags.name, r.tags['name:ja'], r.tags.ref].filter(Boolean).join(' '); if (keys.some((k) => nm.includes(k))) r.members.forEach((m) => { if (m.type === 'way') pref.add(m.ref); }); });
+  // 노선 이름이 맞는 선로(아이디만 온 것)는 싸게, 다른 선로는 비싸게 → 같은 노선을 따라가요
+  const pref = new Set(data.elements.filter((e) => e.type === 'way' && !e.geometry).map((e) => e.id));
   const usePref = pref.size > 0;
   const pos = new Map(), adj = new Map();
   const edge = (u, v, w) => { if (!adj.has(u)) adj.set(u, []); adj.get(u).push([v, w]); };
