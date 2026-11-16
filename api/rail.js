@@ -2,7 +2,7 @@
 // GET /api/rail?a=lat,lng&b=lat,lng&ln=노선 이름  →  { p: [[lat,lng],...] }  (못 찾으면 p: [])
 // 같은 질문은 CDN에 1년 저장해서 OpenStreetMap 서버에 다시 묻지 않아요
 
-const OVERPASS = ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter'];
+const OVERPASS = ['https://overpass-api.de/api/interpreter', 'https://overpass.private.coffee/api/interpreter', 'https://maps.mail.ru/osm/tools/overpass/api/interpreter', 'https://overpass.kumi.systems/api/interpreter'];
 
 // 한국어 노선 이름 → OpenStreetMap(일본어) 노선 이름에 들어가는 글자
 const JA = [
@@ -53,7 +53,8 @@ function simplify(pts, tol) {
 
 async function overpass(q) {
   // 두 서버에 같이 물어서 먼저 답한 쪽을 써요
-  const one = async (u) => {
+  const one = async (u) => { try { return await one0(u); } catch (e) { throw new Error(u.split('/')[2] + ': ' + e.message); } };
+  const one0 = async (u) => {
     const ac = new AbortController(), t = setTimeout(() => ac.abort(), 40000);
     try {
       const r = await fetch(u, { method: 'POST', body: 'data=' + encodeURIComponent(q), headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': 'dokodae-travel-app' }, signal: ac.signal });
@@ -61,7 +62,7 @@ async function overpass(q) {
       return await r.json();
     } finally { clearTimeout(t); }
   };
-  try { return await Promise.any(OVERPASS.map(one)); } catch (e) { throw (e.errors && e.errors[0]) || e; }
+  try { return await Promise.any(OVERPASS.map(one)); } catch (e) { throw new Error(e.errors ? e.errors.map((x) => x.message.slice(0, 60)).join(' / ') : e.message); }
 }
 
 async function route(a, b, ln) {
@@ -121,6 +122,6 @@ module.exports = async function handler(req, res) {
     res.status(200).json({ p });
   } catch (e) {
     res.setHeader('Cache-Control', 'no-store');
-    res.status(502).json({ error: 'rail_failed', why: String(e && e.message || e).slice(0, 200), p: [] });
+    res.status(502).json({ error: 'rail_failed', why: String(e && e.message || e).slice(0, 400), p: [] });
   }
 };
