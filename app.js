@@ -231,7 +231,7 @@
       }
       if (del.includes(i)) x.del = 1;
       return x;
-    }).concat((e.add || []).map((a) => { const x = [a.t, a.n, a.m || '', a.lat == null ? null : a.lat, a.lng == null ? null : a.lng, 's']; x.key = 'c' + a.id; x.custom = a.id; x.todo = a.todo || []; x.chk = a.chk || []; return x; }));
+    }).concat((e.add || []).map((a) => { const x = [a.t, a.n, a.m || '', a.lat == null ? null : a.lat, a.lng == null ? null : a.lng, 's']; x.key = 'c' + a.id; x.custom = a.id; x.todo = a.todo || []; x.chk = a.chk || []; if (a.go && a.go.m) x.go = a.go; return x; }));
     // 보여주는 순서: 원래 순서는 그대로 두고, 추가한 일정은 시간에 맞춰 끼워 넣어요
     // 새벽 4시 전 일정(예: 00:30 숙소 복귀)은 그날 밤 늦은 일정으로 보고 맨 뒤에 둬요
     const seq = d.base.map((b, i) => i), nb = d.base.length;
@@ -297,8 +297,18 @@
     });
   }
   // 이 장소로 오는 구간: 할 일 글에서 노선 이름과 걸리는 시간을 찾아요
+  const GO_NAME = { walk: '걸어서', rail: '전철', bus: '버스', taxi: '택시' };
+  const lineColor = (nm) => { const h = LINEC.find(([k]) => nm && nm.includes(k)); return h ? h[1] : null; };
   function legOf(d, i, prev) {
-    const s = d.stops[i], text = (d.rides[i] || []).concat(todoList(d, s)).join(' ');
+    const s = d.stops[i];
+    // 사용자가 정한 이동 방법이 있으면 그대로 써요
+    if (s.go && s.go.m) {
+      const g = s.go, min = g.min ? ' · ' + g.min + '분' : '';
+      if (g.m === 'walk') return { c: null, walk: true, label: '걸어서' + min };
+      const nm = (g.ln || '').trim() || GO_NAME[g.m];
+      return { c: lineColor(nm) || (g.m === 'rail' ? '#4E5968' : '#8B95A1'), walk: false, label: nm + min };
+    }
+    const text = (d.rides[i] || []).concat(todoList(d, s)).join(' ');
     let hit = null;
     for (const [k, c] of LINEC) { const at = text.indexOf(k); if (at >= 0 && (!hit || at < hit.at)) hit = { at, k, c }; }
     const mm = text.match(/(\d{1,3}(?:\s*[~-]\s*\d{1,3})?)\s*분/);
@@ -454,7 +464,12 @@
     const walk = (p) => {
       if (!last) return; const dist = map.distance(last, p);
       if (dist <= 40) return;
-      const ln = dist <= 2500 ? walkLine(last, p, LEG_OFF, layer)
+      const g = to != null && d.stops[to] && d.stops[to].go;
+      if (g && g.m && g.m !== 'walk') {
+        const lg = legOf(d, to, null), rl = L.polyline([last, p], { color: lg.c, weight: 5, opacity: 0.9, lineCap: 'round', rc: lg.c, dashArray: g.m === 'rail' ? null : '2 8' }).addTo(layer).bindTooltip(lg.label, { sticky: true });
+        (legs[to] = legs[to] || []).push(rl); return;
+      }
+      const ln = (dist <= 2500 || (g && g.m === 'walk')) ? walkLine(last, p, LEG_OFF, layer)
         : L.polyline([last, p], { color: LEG_OFF, weight: 4, opacity: 0.75, dashArray: '10 8', lineCap: 'round' }).addTo(layer)
           .bindTooltip(`이동 · 약 ${(dist / 1000).toFixed(1)}km (교통수단은 일정에서 확인)`, { sticky: true });
       if (to != null) (legs[to] = legs[to] || []).push(ln);
@@ -504,7 +519,7 @@
   function paintLegs() {
     const d = dayOf(S.day), on = S.sel != null ? S.sel : d ? curStop(d, nowJST()) : -1;
     Object.keys(legs).forEach((k) => legs[k].forEach((ln) => {
-      const hit = +k === on; ln.setStyle({ color: hit ? PRI : LEG_OFF, opacity: hit ? 1 : 0.75, weight: hit ? 6 : 3 });
+      const hit = +k === on, rc = ln.options && ln.options.rc; ln.setStyle({ color: hit ? PRI : rc || LEG_OFF, opacity: hit || rc ? 1 : 0.75, weight: hit ? 6 : rc ? 5 : 3 });
       if (hit) ln.bringToFront();
     }));
     Object.keys(markers).forEach((k) => { const el = markers[k].getElement && markers[k].getElement(); const pin = el && el.firstElementChild; if (pin && pin.classList.contains('pin')) pin.classList.toggle('sel', k === 's' + on); const tt = markers[k].getTooltip && markers[k].getTooltip(), te = tt && tt.getElement && tt.getElement(); if (te) te.classList.toggle('lsel', k === 's' + on); });
@@ -716,7 +731,12 @@
       <div class="erow"><label class="et">시간<input type="time" data-ed="t" value="${esc(x.t)}"></label><label style="flex:1;min-width:0">장소·할 일 이름<input type="text" data-ed="n" value="${esc(x.n)}" placeholder="예: 스카이트리 전망대"></label></div>
       <label>메모<input type="text" data-ed="m" value="${esc(x.m)}" placeholder="예: 입장권 미리 예매함"></label>
       <label>체크리스트 <span class="muted">(한 줄에 하나)</span><textarea data-ed="todo" rows="3" placeholder="예: 7번 출구로 나가기">${esc(x.todo)}</textarea></label>
-      <div class="k" style="margin-top:8px">위치</div>
+      <div class="k" style="margin-top:12px">여기까지 가는 방법</div>
+      <div class="chips gochips">${[['', '자동'], ['walk', '걸어서'], ['rail', '전철·지하철'], ['bus', '버스'], ['taxi', '택시']].map(([v, l]) => `<button type="button" class="chip${(x.gm || '') === v ? ' on' : ''}" data-gm="${v}">${l}</button>`).join('')}</div>
+      ${x.gm === 'rail' || x.gm === 'bus' ? `<div class="erow"><label style="flex:1;min-width:0">${x.gm === 'rail' ? '노선' : '버스 이름'}<input type="text" data-ed="gl" list="lineList" value="${esc(x.gl || '')}" placeholder="${x.gm === 'rail' ? '예: 긴자선, JR 야마노테선' : '예: 도에이 버스 都01'}"></label><label class="et" style="width:96px">걸리는 분<input type="text" inputmode="numeric" data-ed="gmin" value="${esc(x.gmin || '')}" placeholder="12"></label></div>
+      <datalist id="lineList">${LINEC.filter(([k]) => !/버스|택시|쾌속|순환선/.test(k)).map(([k]) => `<option value="${k.endsWith('선') || /신칸센|모노레일|하루카|스카이라이너|로망스카|에노덴/.test(k) ? k : k + '선'}">`).join('')}</datalist>`
+      : x.gm ? `<label style="width:120px">걸리는 분<input type="text" inputmode="numeric" data-ed="gmin" value="${esc(x.gmin || '')}" placeholder="10"></label>` : `<div class="muted" style="margin-top:2px">자동은 할 일 글에 적힌 노선 이름이나 거리로 정해요.</div>`}
+      <div class="k" style="margin-top:12px">위치</div>
       <div class="muted" style="margin:2px 0 6px">${x.lat != null ? `${I('pin')} 지도에 표시돼요${x.place ? ' · ' + esc(x.place) : ''}` : '아직 위치가 없어요. 장소를 찾거나 지도에서 찍어 주세요.'}</div>
       <div class="row" style="flex-wrap:nowrap"><input type="search" id="placeQ" value="${esc(E.q || '')}" placeholder="장소 검색 (예: 도쿄 스카이트리)" style="flex:1;min-width:0"><button class="btn ghost" id="placeGo">찾기</button></div>
       ${res ? `<div class="pres">${res.length ? res.map((r, k) => `<button class="pr" data-place="${k}"><b>${esc(r.name)}</b><small>${esc(r.addr)}</small></button>`).join('') : '<div class="muted">찾는 장소가 없어요. 다른 이름이나 일본어로 찾아보세요.</div>'}</div>` : ''}
@@ -729,10 +749,11 @@
     S.editMode = true;
     if (i === 'new') {
       const last = d.vis.length ? d.stops[d.vis[d.vis.length - 1]] : null;
-      S.edit = { i, draft: { t: last ? last[0] : '09:00', n: '', m: '', todo: '', lat: null, lng: null } };
+      S.edit = { i, draft: { t: last ? last[0] : '09:00', n: '', m: '', todo: '', lat: null, lng: null, gm: '', gl: '', gmin: '' } };
     } else {
       const s = d.stops[i];
-      S.edit = { i, draft: { t: s[0], n: s[1], m: s[2] || '', todo: todoList(d, s).join('\n'), lat: s[3], lng: s[4] } };
+      const g = s.go || {};
+      S.edit = { i, draft: { t: s[0], n: s[1], m: s[2] || '', todo: todoList(d, s).join('\n'), lat: s[3], lng: s[4], gm: g.m || '', gl: g.ln || '', gmin: g.min ? String(g.min) : '' } };
     }
     S.edit.orig = JSON.stringify(S.edit.draft);
     renderPlan(); showDraft();
@@ -755,12 +776,16 @@
     if (!/^\d{1,2}:\d{2}$/.test(t)) return toast('시간을 넣어 주세요.');
     if (!n) return toast('이름을 넣어 주세요.');
     const todo = String(x.todo || '').split('\n').map((v) => v.trim()).filter(Boolean);
+    const mn = parseInt(String(x.gmin || '').replace(/[^0-9]/g, ''), 10);
+    const go = x.gm ? { m: x.gm, ln: x.gm === 'rail' || x.gm === 'bus' ? String(x.gl || '').trim().slice(0, 30) : '', min: mn > 0 && mn < 1000 ? mn : 0 } : null;
     const e = edOf(d);
     const a0 = E.i !== 'new' && d.stops[E.i] && d.stops[E.i].custom != null ? e.add.find((v) => v.id === d.stops[E.i].custom) : null;
     if (E.i === 'new' || (d.stops[E.i] && d.stops[E.i].custom != null && !a0)) {
-      e.add.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 5), t, n, m: (x.m || '').trim(), todo, lat: x.lat, lng: x.lng });
+      const na = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 5), t, n, m: (x.m || '').trim(), todo, lat: x.lat, lng: x.lng };
+      if (go) na.go = go; e.add.push(na);
     } else if (a0) {
       Object.assign(a0, { t, n, m: (x.m || '').trim(), todo, lat: x.lat, lng: x.lng });
+      if (go) a0.go = go; else delete a0.go;
       if (a0.chk) a0.chk = a0.chk.filter((c) => todo.includes(c));
     } else {
       const b = d.base[E.i], m = {};
@@ -1587,6 +1612,7 @@
     if (d.askq) { const q = S.query; go('ask'); if (q) $('#q').value = q; return $('#q').focus(); }
     if (d.askabout) { go('ask'); $('#q').value = `"${CARD[d.askabout].title}" 관련해서 `; return $('#q').focus(); }
     if (d.goacct) { const a = $('#acct'); if (a) a.scrollIntoView({ block: 'start', behavior: 'smooth' }); return; }
+    if (d.gm != null && S.edit) { S.edit.draft.gm = d.gm; renderPlan(); const el = $('#editor'); if (el) el.querySelector('.gochips').scrollIntoView({ block: 'nearest' }); return; }
     if (d.asknow != null) { go('ask'); $('#q').value = `지금 "${d.asknow}"에 있는데, `; return $('#q').focus(); }
     if (d.askstep) { const st = IT[+d.askstep]; go('ask'); $('#q').value = `지금 "${st.todo}" 단계인데, `; return $('#q').focus(); }
     if (d.edit != null) return openEditor(+d.edit);
