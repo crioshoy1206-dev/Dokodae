@@ -59,7 +59,7 @@ async function overpass(q) {
       const r = await fetch(u, { method: 'POST', body: 'data=' + encodeURIComponent(q), headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': 'dokodae-travel-app' }, signal: ac.signal });
       clearTimeout(t);
       if (r.ok) return await r.json();
-      last = new Error('overpass ' + r.status);
+      last = new Error('overpass ' + r.status + ' ' + (await r.text()).slice(0, 120));
     } catch (e) { last = e; }
   }
   throw last;
@@ -121,6 +121,6 @@ module.exports = async function handler(req, res) {
     res.status(200).json({ p });
   } catch (e) {
     res.setHeader('Cache-Control', 'no-store');
-    res.status(502).json({ error: 'rail_failed', p: [] });
+    res.status(502).json({ error: 'rail_failed', why: String(e && e.message || e).slice(0, 200), p: [] });
   }
 };
