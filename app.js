@@ -558,11 +558,11 @@
     if (fit !== false) fitDay();
     zoomCls();
   }
-  // 고른 일정(없으면 지금 하는 일정)으로 오는 길은 민트색, 나머지는 회색
+  // 고른 일정(없으면 지금 하는 일정)으로 오는 길만 색을 칠해요 (열차는 노선 색, 걸어서는 민트색), 나머지는 회색
   function paintLegs() {
     const d = dayOf(S.day), on = S.sel != null ? S.sel : d ? curStop(d, nowJST()) : -1;
     Object.keys(legs).forEach((k) => legs[k].forEach((ln) => {
-      const hit = +k === on, rc = ln.options && ln.options.rc; ln.setStyle({ color: hit ? PRI : rc || LEG_OFF, opacity: hit || rc ? 1 : 0.75, weight: hit ? 6 : rc ? 5 : 3 });
+      const hit = +k === on, rc = ln.options && ln.options.rc; ln.setStyle({ color: hit ? rc || PRI : LEG_OFF, opacity: hit ? 1 : 0.55, weight: hit ? 6 : 3 });
       if (hit) ln.bringToFront();
     }));
     Object.keys(markers).forEach((k) => { const el = markers[k].getElement && markers[k].getElement(); const pin = el && el.firstElementChild; if (pin && pin.classList.contains('pin')) pin.classList.toggle('sel', k === 's' + on); const tt = markers[k].getTooltip && markers[k].getTooltip(), te = tt && tt.getElement && tt.getElement(); if (te) te.classList.toggle('lsel', k === 's' + on); });
