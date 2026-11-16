@@ -271,6 +271,42 @@
     return a.chk.includes(t);
   }
   const gq = (q) => 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(q);
+  // ---------- 노선색 · 역번호 ----------
+  // 일정 글에 나온 노선 이름으로 구간 색을 정해요 (실제 노선 표지 색)
+  const LINEC = [
+    ['긴자선', '#F39700'], ['마루노우치', '#E60012'], ['히비야', '#9CAEB7'], ['도자이', '#00A7DB'], ['지요다', '#009944'], ['유라쿠초', '#C1A470'],
+    ['한조몬', '#8F76D6'], ['난보쿠', '#00AC9B'], ['후쿠토신', '#9C5E31'], ['아사쿠사선', '#E85298'], ['미타선', '#0079C2'], ['신주쿠선', '#6CBB5A'], ['오에도', '#B6007A'],
+    ['야마노테', '#80C241'], ['게이힌토호쿠', '#00B2E5'], ['소부', '#FFD400'], ['주오선', '#F15A22'], ['쾌속', '#F15A22'], ['요코스카', '#0067C0'], ['쇼난신주쿠', '#E21F26'],
+    ['스카이라이너', '#005AAA'], ['게이세이', '#005AAA'], ['오다큐', '#2288CC'], ['로망스카', '#2288CC'], ['에노덴', '#2E8B57'], ['에노시마 전철', '#2E8B57'], ['모노레일', '#00838F'],
+    ['유리카모메', '#1E50A2'], ['린카이', '#00418E'], ['게이큐', '#E5171F'], ['도큐', '#DA0442'], ['게이오', '#DD0077'], ['세이부', '#00A0DE'], ['도부', '#0F378E'],
+    ['미도스지', '#E5171F'], ['다니마치', '#522886'], ['요쓰바시', '#0078BA'], ['요츠바시', '#0078BA'], ['주오센', '#019A66'], ['센니치마에', '#E44D93'], ['사카이스지', '#814721'],
+    ['나가호리', '#A9CC51'], ['이마자토스지', '#EE7B1A'], ['뉴트램', '#00A3D9'], ['간조', '#F18C43'], ['순환선', '#F18C43'], ['유메사키', '#1E5BAA'], ['난카이', '#F27420'],
+    ['한큐', '#7B2F2F'], ['한신', '#0060B6'], ['긴테쓰', '#C7151E'], ['게이한', '#00754A'], ['하루카', '#0D3B8C'], ['신칸센', '#1C5BA8'], ['심야버스', '#4E5968'], ['버스', '#4E5968'], ['택시', '#4E5968']
+  ];
+  const TOKYO_C = { G: '#F39700', M: '#E60012', Mb: '#E60012', H: '#9CAEB7', T: '#00A7DB', C: '#009944', Y: '#C1A470', Z: '#8F76D6', N: '#00AC9B', F: '#9C5E31', A: '#E85298', I: '#0079C2', S: '#6CBB5A', E: '#B6007A',
+    JY: '#80C241', JK: '#00B2E5', JB: '#FFD400', JC: '#F15A22', JO: '#0067C0', JS: '#E21F26', JA: '#00AC9A', KS: '#005AAA', OH: '#2288CC', OE: '#2288CC', EN: '#2E8B57', KK: '#E5171F', TY: '#DA0442', DT: '#DA0442', KO: '#DD0077', SI: '#00A0DE', TS: '#0F378E', U: '#1E50A2', R: '#00418E' };
+  const OSAKA_C = { M: '#E5171F', T: '#522886', Y: '#0078BA', C: '#019A66', S: '#E44D93', K: '#814721', N: '#A9CC51', I: '#EE7B1A', P: '#00A3D9', JR: '#F18C43', O: '#F18C43', NK: '#F27420', HK: '#7B2F2F', HS: '#0060B6', KH: '#00754A' };
+  const isOsaka = (d) => { const s = d && (d.stops || []).find((x) => x && x[3] != null); return !!(s && s[3] < 35.2); };
+  // 이미 esc 된 글에서 (G-14) 같은 역번호를 배지로 바꿔요
+  function badges(h, osaka) {
+    const tb = osaka ? OSAKA_C : TOKYO_C;
+    return h.replace(/\(?\b([A-Z]{1,2})-?(\d{2})\b\)?/g, (m, l, n) => {
+      if (!/[-(]/.test(m) && !/^\(/.test(m)) return m;
+      const c = tb[l]; if (!c) return m;
+      return `<span class="sta" style="--sc:${c}" aria-label="역번호 ${l}${n}"><b>${l}</b><i>${n}</i></span>`;
+    });
+  }
+  // 이 장소로 오는 구간: 할 일 글에서 노선 이름과 걸리는 시간을 찾아요
+  function legOf(d, i, prev) {
+    const s = d.stops[i], text = (d.rides[i] || []).concat(todoList(d, s)).join(' ');
+    let hit = null;
+    for (const [k, c] of LINEC) { const at = text.indexOf(k); if (at >= 0 && (!hit || at < hit.at)) hit = { at, k, c }; }
+    const mm = text.match(/(\d{1,3}(?:\s*[~-]\s*\d{1,3})?)\s*분/);
+    const walk = !hit && (/도보|걸어|걷기/.test(text) || (prev && prev[3] != null && s[3] != null && L.latLng(prev[3], prev[4]).distanceTo(L.latLng(s[3], s[4])) < 1500));
+    let nm = '';
+    if (hit) { const m2 = text.slice(Math.max(0, hit.at - 8), hit.at + hit.k.length + 2).match(/[가-힣A-Za-z]*\s?[가-힣A-Za-z]*$/); nm = hit.k.endsWith('선') || /버스|택시|신칸센|모노레일|하루카|스카이라이너|로망스카/.test(hit.k) ? hit.k : hit.k + '선'; }
+    return { c: hit ? hit.c : null, walk, label: hit ? nm + (mm ? ' · ' + mm[1].replace(/\s/g, '') + '분' : '') : walk ? '걸어서' + (mm ? ' · ' + mm[1].replace(/\s/g, '') + '분' : '') : '' };
+  }
   function curStop(d, n) {
     if (n.d !== d.date) return -1;
     let idx = -1;
@@ -454,7 +490,7 @@
     d.meals.forEach((ml, mi) => ml.picks.forEach((p, pi) => {
       const icon = L.divIcon({ className: '', html: `<div class="fpin${p[5] ? '' : ' alt'}"></div>`, iconSize: [16, 16], iconAnchor: [8, 8] });
       const m = L.marker([p[3], p[4]], { icon, zIndexOffset: p[5] ? 400 : 300 }).addTo(layer)
-        .bindPopup(`<div class="popup"><b>${p[5] ? '★ ' : ''}${esc(p[0])}</b><br>${esc(p[2])}<br><a href="${gq(p[1])}" target="_blank" rel="noopener">구글맵에서 보기 ↗</a></div>`, { autoPan: false })
+        .bindPopup(`<div class="popup"><b>${esc(p[0])}</b><br>${esc(p[2])}<br><a href="${gq(p[1])}" target="_blank" rel="noopener">구글맵에서 보기</a></div>`, { autoPan: false })
         .bindTooltip((p[0].match(/\(([^)]+)\)/) || [0, p[0]])[1], { permanent: true, direction: 'top', offset: [0, -8], className: 'fd' })
         .on('click', () => showPick(mi, pi));
       markers[`f${mi}_${pi}`] = m; fitPts.push([p[3], p[4]]);
@@ -623,7 +659,7 @@
   function clock() {
     const n = nowJST(), up = S.sheet === 'peek' && !isDesk();
     const wait = CL && CL.pending && CL.error ? ' · <span class="wait">저장 대기</span>' : '';
-    if (!R.DAYS.length) { $('#clock').innerHTML = `일본 <b>${n.d.slice(5).replace('-', '/')} ${n.t}</b>`; $('#peek').innerHTML = '<b>새 여행 만들기</b>' + (up ? ' · 위로 올려서 시작해요' : ''); return; }
+    if (!R.DAYS.length) { $('#clock').innerHTML = `일본 <b>${n.d.slice(5).replace('-', '/')} ${n.t}</b>`; $('#peek').innerHTML = '<b>새 여행 만들기</b>'; return; }
     const dday = Math.round((Date.parse(TRIP_START) - Date.parse(n.d)) / 864e5);
     $('#clock').innerHTML = `일본 <b>${n.d.slice(5).replace('-', '/')} ${n.t}</b>` + (n.sim ? ' · 미리보기' : '') + (dday > 0 ? ` · D-${dday}` : '') + wait;
     const { cur, next } = findNow(n), st = cur || next;
@@ -632,7 +668,7 @@
     else if (inTrip(n)) {
       const dd = dayOf(n.d), i = dd ? curStop(dd, n) : -1, vi = dd ? dd.vis : [], nx = i >= 0 ? vi[vi.indexOf(i) + 1] : vi[0];
       pk = i >= 0 ? `<b>지금 ${esc(dd.stops[i][0])}</b> · ${esc(dd.stops[i][1])}` : nx != null ? `<b>다음 ${esc(dd.stops[nx][0])}</b> · ${esc(dd.stops[nx][1])}` : vi.length ? '오늘 일정은 모두 끝났어요' : '오늘은 아직 일정이 없어요';
-    } else if (n.d < TRIP_START) pk = `<b>여행 전 · D-${dday}</b>` + (up ? ' · 위로 올려서 일정 보기' : '');
+    } else if (n.d < TRIP_START) pk = `<b>여행 전</b> · D-${dday}`;
     else pk = '여행이 끝났어요';
     $('#peek').innerHTML = pk;
   }
@@ -669,7 +705,7 @@
   function mealsHTML(d, list) {
     return list.map((ml) => {
       const mi = d.meals.indexOf(ml);
-      return `<div class="meal"><h3>${esc(ml.label)}</h3>${ml.picks.map((p, pi) => `<div class="pick" data-pick="${mi}_${pi}"><span class="mk">${p[5] ? '★' : '◇'}</span><span>${esc(p[0])} <small>${esc(p[2])}</small><small class="pwalk"></small></span><a href="${gq(p[1])}" target="_blank" rel="noopener">지도 ↗</a></div>`).join('')}</div>`;
+      return `<div class="meal"><h3>${esc(ml.label)}</h3>${ml.picks.map((p, pi) => `<div class="pick" data-pick="${mi}_${pi}"><span class="mk">${p[5] ? I('star') : '<i class="dia o"></i>'}</span><span>${esc(p[0])} <small>${esc(p[2])}</small><small class="pwalk"></small></span><a href="${gq(p[1])}" target="_blank" rel="noopener">${I('ext')} 지도</a></div>`).join('')}</div>`;
     }).join('');
   }
   function editorHTML(d) {
@@ -925,7 +961,7 @@
         ${st.memo ? `<div class="det">${I('bulb')} ${esc(st.memo)}</div>` : ''}
         <div>${cardTags(cardsForStep(st))}</div>
         ${cur && next ? `<div class="det" style="margin-top:8px"><b>다음</b> ${esc(next.s)} ${esc(next.todo)}</div>` : ''}
-        <div class="row" style="margin-top:10px"><button class="btn" data-askstep="${IT.indexOf(st)}">여기서 막혔어요 → AI에게 묻기</button></div>
+        <div class="row" style="margin-top:10px"><button class="btn" data-askstep="${IT.indexOf(st)}">${I('chat')} 물어보기</button></div>
       </div>`;
     } else if (inTrip(n) && !IT.length) {
       // 직접 만든 여행: 오늘 일정에서 지금 할 일·다음 할 일을 보여줘요
@@ -934,19 +970,22 @@
       const main = now || nx;
       if (main) {
         const todos = todoList(td, main).filter((t, k) => !isChk(td, main, t, k)).slice(0, 3);
-        top = `<div class="card now">
-          <div class="k">${now ? '지금 할 일' : '다음 할 일'} · ${esc(main[0])}</div>
-          <div class="big">${esc(main[1])}</div>
-          ${main[2] ? `<div class="det">${I('bulb')} ${esc(main[2])}</div>` : ''}
-          ${todos.length ? `<ul class="todo nowtodo">${todos.map((t) => `<li>${esc(t)}</li>`).join('')}</ul>` : ''}
-          ${now && nx ? `<div class="det" style="margin-top:8px"><b>다음</b> ${esc(nx[0])} ${esc(nx[1])}</div>` : ''}
-          <div class="row" style="margin-top:10px">${S.day !== n.d ? `<button class="btn ghost sm" data-day="${esc(n.d)}">오늘 일정 보기</button>` : ''}<button class="btn sm" data-asknow="${esc(main[1])}">여기서 막혔어요 · AI에게 묻기</button></div>
+        const os = isOsaka(td), lg = legOf(td, now ? ix : nxi, null), board = todoList(td, main).find((t) => /타는|승강장|플랫폼|번선|출구|개찰/.test(t));
+        top = `<div class="board">
+          <div class="bhead"><span class="bk">${now ? '지금' : '다음'}</span><span class="btime">${esc(main[0])}</span>${lg.c ? `<span class="bline" style="--lc:${lg.c}">${esc(lg.label.split(' · ')[0])}</span>` : ''}</div>
+          <div class="bdest">${badges(esc(main[1]), os)}</div>
+          <div class="bbody">
+            ${board ? `<div class="brow"><span class="bl">타는 곳</span><span>${badges(esc(board), os)}</span></div>` : ''}
+            ${todos.filter((t) => t !== board).slice(0, 2).map((t, k) => `<div class="brow"><span class="bl">${k ? '' : '할 일'}</span><span>${badges(esc(t), os)}</span></div>`).join('')}
+            ${now && nx ? `<div class="brow sub"><span class="bl">다음</span><span><b class="tnum">${esc(nx[0])}</b> ${badges(esc(nx[1]), os)}</span></div>` : ''}
+            <div class="row" style="margin-top:12px">${S.day !== n.d ? `<button class="btn ghost" data-day="${esc(n.d)}">오늘 일정</button>` : ''}<button class="btn" data-asknow="${esc(main[1])}">${I('chat')} 물어보기</button></div>
+          </div>
         </div>`;
-      } else if (td && !vi.length) top = `<div class="card"><div class="k">여행 중 · 오늘</div><div class="muted">오늘은 아직 일정이 없어요.</div></div>`;
-      else if (td) top = `<div class="card"><div class="k">여행 중 · 오늘</div><div class="muted">오늘 일정은 모두 끝났어요. 수고 많으셨어요!</div></div>`;
+      } else if (td && !vi.length) top = `<div class="card"><div class="muted">오늘은 아직 일정이 없어요.</div></div>`;
+      else if (td) top = `<div class="card"><div class="muted">오늘 일정은 모두 끝났어요.</div></div>`;
     } else if (n.d < TRIP_START && !OWNER) {
       const dd = Math.round((Date.parse(TRIP_START) - Date.parse(n.d)) / 864e5);
-      top = `<div class="card"><div class="k">여행 전 · D-${dd}</div><div class="muted">여행 중에는 지금 시각에 맞는 장소가 '지금'으로 표시돼요. 장소를 누르면 할 일이 펼쳐져요.</div></div>`;
+      top = dd > 0 && !store.get('hintSeen', 0) ? (store.set('hintSeen', 1), `<div class="card hint"><div class="muted">여행 날이 되면 지금 할 일이 여기에 떠요.</div></div>`) : '';
     } else if (n.d < TRIP_START) {
       top = `<div class="card"><div class="k">여행 전</div><div style="font-weight:600;margin:2px 0 4px">여행이 시작되면 여기에 "지금 할 일"이 떠요</div>
         <div class="muted">미리 써 보려면 여행 중 시간으로 바꿔 보세요.</div>
@@ -959,7 +998,12 @@
       top = `<div class="card"><b>여행이 끝났어요. 수고 많으셨어요!</b></div>`;
     }
     const ci = curStop(d, n);
-    const EM = S.editMode;
+    const EM = S.editMode, OS = isOsaka(d);
+    // 노선도 선: 미리 구간을 계산해 두고, 장소마다 들어오는 선(--li)과 나가는 선(--lo)을 칠해요
+    const WALKBG = 'repeating-linear-gradient(var(--sub) 0 4px,transparent 4px 9px)';
+    const live = d.seq.filter((i) => !d.stops[i].del), LEG = {};
+    live.forEach((i, k) => { if (k) LEG[i] = legOf(d, i, d.stops[live[k - 1]]); });
+    const legBg = (lg) => (!lg ? 'transparent' : lg.c ? lg.c : lg.walk ? WALKBG : 'var(--rail-line)');
     const stops = d.seq.map((i) => {
       const s = d.stops[i], no = numOf(d, i);
       const ml0 = d.meals.filter((ml) => ml.at === i);
@@ -975,10 +1019,13 @@
       const tags = cardsForText([s[1], s[2]].concat(rides, todo).join(' '), 2);
       const meals = mealsHTML(d, ml0), op = S.xp.has(i) || EM;
       const nDo = rides.length + todo.length + ml0.length;
-      return `<div class="stop${i === ci ? ' cur' : ''}${i === S.sel ? ' on' : ''}${op ? ' open' : ''}" data-stop="${i}" role="button" tabindex="0" aria-expanded="${!!op}">
+      // 노선도: 앞 장소에서 오는 구간을 그 노선 색 선으로 (걸어가면 점선)
+      const lg = LEG[i], nx = LEG[live[live.indexOf(i) + 1]];
+      const legRow = lg ? `<div class="leg${lg.label ? '' : ' bare'}" style="--lc:${legBg(lg)}"><span>${esc(lg.label)}</span></div>` : '';
+      return legRow + `<div class="stop${i === ci ? ' cur' : ''}${i === S.sel ? ' on' : ''}${op ? ' open' : ''}" data-stop="${i}" role="button" tabindex="0" aria-expanded="${!!op}" style="--li:${legBg(lg)};--lo:${legBg(nx)}">
         <span class="time">${esc(s[0])}</span>
         <span class="num${no ? (s[5] === 'm' ? ' move' : '') : ' start'}">${no}</span>
-        <span class="what">${EM ? `<button class="ebtn" data-edit="${i}">수정</button>` : ''}<b>${esc(s[1])}</b>${i === ci ? '<span class="nowtag">지금</span>' : ''}${s.custom != null && d.base.length ? '<span class="etag">추가함</span>' : s.edited ? '<span class="etag">수정함</span>' : ''}${s[3] == null ? '<span class="etag">위치 없음</span>' : ''}${nDo || s[2] ? `<span class="chev" aria-hidden="true">${nDo ? nDo + ' ' : ''}${I('chev')}</span>` : ''}
+        <span class="what">${EM ? `<button class="ebtn" data-edit="${i}">수정</button>` : ''}<b>${badges(esc(s[1]), OS)}</b>${i === ci ? '<span class="nowtag">지금</span>' : ''}${s.custom != null && d.base.length ? '<span class="etag">추가함</span>' : s.edited ? '<span class="etag">수정함</span>' : ''}${s[3] == null ? '<span class="etag">위치 없음</span>' : ''}${nDo || s[2] ? `<span class="chev" aria-hidden="true">${nDo ? nDo + ' ' : ''}${I('chev')}</span>` : ''}
 </span>
           <div class="sdet">${s[2] ? `<small class="memo">${esc(s[2])}</small>` : ''}
           ${li ? `<ul class="todo">${li}</ul>` : ''}
@@ -990,8 +1037,8 @@
     R.PLANS[d.id].forEach((it) => { if (typeof it !== 'number' && !usedLines.includes(R.LINES[it[0]])) usedLines.push(R.LINES[it[0]]); });
     view.innerHTML = `${top}
       <div class="dayhead"><div class="row" style="justify-content:space-between;flex-wrap:nowrap;align-items:flex-start"><h2>${esc(d.title)}</h2>${VIEW ? '' : `<button class="btn ${EM ? '' : 'ghost'} sm" id="editMode">${EM ? '편집 끝내기' : I('edit') + ' 일정 편집'}</button>`}</div><div class="sub">${esc(d.sub)}</div></div>
-      ${usedLines.length || d.meals.length ? `<div class="legend">${usedLines.map((l) => `<span><i style="width:16px;height:5px;border-radius:3px;background:${l.c};display:inline-block"></i>${esc(l.n)}</span>`).join('')}<span><i style="width:16px;border-top:3px dotted var(--c);display:inline-block"></i>도보</span><span style="color:var(--food)">◆ 맛집 후보</span></div>` : ''}
-      <div>${stops || `<div class="empty muted">아직 이날 일정이 없어요.${VIEW ? '' : ' 아래 "이날 일정 추가"로 장소를 넣으면 지도에 동선이 그려져요.'}</div>`}</div>
+      ${usedLines.length || d.meals.length ? `<div class="legend">${usedLines.map((l) => `<span><i style="width:16px;height:5px;border-radius:3px;background:${l.c};display:inline-block"></i>${esc(l.n)}</span>`).join('')}<span><i style="width:16px;border-top:3px dotted var(--c);display:inline-block"></i>도보</span><span style="color:var(--food)"><i class="dia"></i>맛집 후보</span></div>` : ''}
+      <div class="route">${stops || `<div class="empty muted">아직 이날 일정이 없어요.${VIEW ? '' : ' 아래 "이날 일정 추가"로 장소를 넣으면 지도에 동선이 그려져요.'}</div>`}</div>
       ${VIEW ? '' : S.edit && S.edit.i === 'new' ? editorHTML(d) : `<button class="addstop" id="addStop">${I('plus')} 이날 일정 추가</button>`}
       ${EM && d.base.length && hasEdits(d) && (Object.keys(edOf(d).mod).length || edOf(d).del.length) ? `<div style="text-align:center;margin:6px 0 4px"><button class="tag" id="resetDay">원래 일정에서 고친 것 되돌리기</button></div>` : ''}
       ${EM ? `<div class="muted" style="margin:4px 2px 0" id="syncInfo">${syncInfo()}</div>` : ''}
@@ -1079,14 +1126,16 @@
     return ctx;
   }
   function fmt(text) {
-    let h = esc(text).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+    let h = badges(esc(text).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>'), isOsaka(dayOf(nowJST().d) || dayOf(S.day)));
     h = h.replace(/📋\s*직원에게 보여주기:?\s*\n?\s*(.+)/, (m, ja) => `<button class="tag" data-ja="${ja.replace(/"/g, '&quot;')}" style="font-size:16px">${I('clip')} 직원에게 보여주기<br><span style="font-size:19px">${ja}</span></button>`);
     return h;
   }
+  // 도코데 역무원: 모자 쓴 작은 안내원 (자체 그림)
+  const MASCOT = `<svg class="mascot" viewBox="0 0 72 72" aria-hidden="true"><circle cx="36" cy="42" r="22" fill="#FFE2C6"/><path d="M14 30c2-11 12-17 22-17s20 6 22 17z" fill="#191F28"/><rect x="12" y="28" width="48" height="7" rx="3.5" fill="#0F7A68"/><path d="M10 35h52" stroke="#191F28" stroke-width="3" stroke-linecap="round"/><circle cx="36" cy="21" r="4" fill="#FFC83D"/><circle cx="28" cy="44" r="2.6" fill="#191F28"/><circle cx="44" cy="44" r="2.6" fill="#191F28"/><path d="M30 52c3.5 3 8.5 3 12 0" stroke="#191F28" stroke-width="2.4" fill="none" stroke-linecap="round"/><circle cx="22" cy="50" r="3" fill="#FFB4A2" opacity=".7"/><circle cx="50" cy="50" r="3" fill="#FFB4A2" opacity=".7"/></svg>`;
   function renderAsk() {
     const msgs = S.chat.map((m, i) => `<div class="msg ${m.role === 'user' ? 'u' : 'a'}">${m.img ? `<img src="${m.img}" alt="">` : ''}${m.role === 'user' ? esc(m.content) : fmt(m.content)}${m.cards && m.cards.length ? (m.err && CARD[m.cards[0]] ? `<div style="margin-top:8px"><b>${esc(CARD[m.cards[0]].title)}</b>${cardBody(CARD[m.cards[0]])}${cardTags(m.cards.slice(1).map((id) => CARD[id]).filter(Boolean))}</div>` : `<div>${cardTags(m.cards.map((id) => CARD[id]).filter(Boolean))}</div>`) : ''}${m.role === 'assistant' && i === S.chat.length - 1 && !m.err ? `<div style="margin-top:8px"><button class="tag" data-human="1">AI 답으로 해결 안 됐어요</button></div>` : ''}</div>`).join('');
-    view.innerHTML = `${S.chat.length ? '' : `<div class="card"><div class="big">현장에서 막히면 물어보세요</div>
-        <div class="muted">내 일정과 지금 시각을 알고 답해요. 안내판·메뉴·매표기 사진도 카메라 버튼으로 보낼 수 있어요.</div>
+    view.innerHTML = `${S.chat.length ? '' : `<div class="card">${MASCOT}<div class="big">막히면 물어보세요</div>
+        <div class="muted">내 일정과 지금 시각을 알고 답해요. 안내판·메뉴 사진도 보낼 수 있어요.</div>
         <div style="margin-top:8px">${['신주쿠역에서 오다큐선 어디로 가?', '식권기 버튼이 다 일본어야', '신사에서 사진 찍어도 돼?', '심야버스 승차장을 못 찾겠어'].map((q) => `<button class="tag" data-sample="${esc(q)}">${esc(q)}</button>`).join('')}</div></div>`}
       <div class="chat" id="chat">${msgs}${S.busy ? '<div class="typing">답을 찾는 중…</div>' : ''}</div>
       ${S.chat.length ? '<div style="text-align:center;margin-top:14px"><button class="tag" id="clearChat">대화 지우기</button></div>' : ''}
@@ -1347,12 +1396,12 @@
         <div class="k">같이 쓴 사람 (나눠 낼 사람)</div><div class="chips">${ppl.map((x) => `<button class="chip${forSel.includes(x) ? ' on' : ''}" data-payfor="${esc(x)}">${esc(x)}</button>`).join('')}</div>
         <p class="paymsg" id="payMsg"></p>
         <div class="row"><button class="btn" id="payAdd" style="flex:1">${f.editId ? '고친 내용 저장' : '넣기'}</button>${f.editId ? '<button class="btn ghost" id="payEditX">취소</button>' : ''}</div></div>
-      <div class="card"><div class="k">같이 간 사람</div><div class="muted">이름을 누르면 바꿀 수 있어요.</div><div class="chips">${ppl.map((x) => `<span class="chip"><button class="linkname" data-payren="${esc(x)}">${esc(x)} ${I('edit')}</button>${ppl.length > 1 && !used(x) ? ` <button class="x" data-paydel="${esc(x)}" aria-label="${esc(x)} 빼기">×</button>` : ''}</span>`).join('')}</div>
+      <div class="card"><div class="k">같이 간 사람</div><div class="muted">이름을 누르면 바꿀 수 있어요.</div><div class="chips">${ppl.map((x) => `<span class="chip"><button class="linkname" data-payren="${esc(x)}">${esc(x)} ${I('edit')}</button>${ppl.length > 1 && !used(x) ? ` <button class="x" data-paydel="${esc(x)}" aria-label="${esc(x)} 빼기">${I('x')}</button>` : ''}</span>`).join('')}</div>
         <div class="row"><input type="text" id="payP" maxlength="12" placeholder="이름" style="flex:1;width:auto;min-width:0"><button class="btn ghost sm" id="payPAdd">사람 추가</button></div></div>`}
       ${Object.keys(byDay).sort().reverse().map((dd) => `<div class="k" style="margin-top:14px">${md(dd)} (${wd(dd)})</div>` + byDay[dd].slice().reverse().map((it) => {
         const fl = it.for && it.for.length ? it.for : ppl;
         return `<div class="card payitem${f.editId === it.id ? ' on' : ''}"><${ro ? 'div' : `button type="button" data-payedit="${esc(it.id)}" aria-label="${esc(it.n)} 고치기"`} class="pn"><b>${esc(it.n)}</b><div class="muted">${esc(it.by)} 냄 · ${fl.length === ppl.length && ppl.every((x) => fl.includes(x)) ? '모두' : fl.map(esc).join(', ')}</div></${ro ? 'div' : 'button'}>
-          <div class="amt">${it.c === 'KRW' ? won(it.a) : yen(it.a)}${it.c === 'JPY' ? `<div class="muted">${won(it.a * fx)}</div>` : ''}</div>${ro ? '' : `<button class="x" data-payrm="${esc(it.id)}" aria-label="지우기">×</button>`}</div>`;
+          <div class="amt">${it.c === 'KRW' ? won(it.a) : yen(it.a)}${it.c === 'JPY' ? `<div class="muted">${won(it.a * fx)}</div>` : ''}</div>${ro ? '' : `<button class="x" data-payrm="${esc(it.id)}" aria-label="지우기">${I('x')}</button>`}</div>`;
       }).join('')).join('')}`;
   }
   function payClick(t, d) {
