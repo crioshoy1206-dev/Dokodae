@@ -360,7 +360,13 @@
   // 스타일을 앱에 맞게 고쳐요: 지명은 영어(없으면 로마자, 그것도 없으면 현지 이름), 도로 번호 상자는 숨기고, 색은 앱 톤으로
   function tuneStyle(st) {
     const nm = ['coalesce', ['get', 'name:en'], ['get', 'name_en'], ['get', 'name:latin'], ['get', 'name']];
-    st.layers = st.layers.filter((l) => !(l.type === 'symbol' && (/shield/.test(l.id) || (l['source-layer'] === 'transportation_name' && l.layout && l.layout['icon-image']))));
+    // 글자는 큰 지명 위주로: 가게·시설(poi), 도로 이름, 번지는 빼고 작은 동네 이름은 더 확대했을 때만
+    st.layers = st.layers.filter((l) => !(l.type === 'symbol' && (/shield|housenumber/.test(l.id) || ['poi', 'transportation_name', 'housenumber', 'mountain_peak'].includes(l['source-layer']))));
+    st.layers.forEach((l) => {
+      if (l.type !== 'symbol' || l['source-layer'] !== 'place') return;
+      if (/other|neighbo|hamlet|suburb|quarter/.test(l.id)) l.minzoom = Math.max(l.minzoom || 0, 14);
+      else if (/village/.test(l.id)) l.minzoom = Math.max(l.minzoom || 0, 12);
+    });
     st.layers.forEach((l) => {
       if (l.layout && l.layout['text-field']) l.layout['text-field'] = nm;
       if (dark) return;
