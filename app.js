@@ -423,11 +423,11 @@
   const topH = () => { const tb = $('#topbar'); return (tb ? tb.getBoundingClientRect().bottom : 100) + 8; };
   const railW = () => { const nv = $('#nav'); return nv ? nv.offsetWidth : 0; };
   function pad() {
-    return isDesk() ? { paddingTopLeft: [40, 70], paddingBottomRight: [panel.offsetWidth + railW() + 48, 40] } : { paddingTopLeft: [24, topH()], paddingBottomRight: [60, sheetVisible() + 20] };
+    return isDesk() ? { paddingTopLeft: [40, 70], paddingBottomRight: [panel.offsetWidth + railW() + 84, 40] } : { paddingTopLeft: [24, topH()], paddingBottomRight: [60, sheetVisible() + 20] };
   }
   function focusLL(ll, z) {
     z = Math.max(map.getZoom(), z || 15);
-    const dx = isDesk() ? (panel.offsetWidth + railW()) / 2 : 0;
+    const dx = isDesk() ? (panel.offsetWidth + railW() + 36) / 2 : 0;
     const dy = isDesk() ? 0 : (sheetVisible() - topH()) / 2;
     const p = map.project(ll, z).add([dx, dy]);
     map.setView(map.unproject(p, z), z);
@@ -682,6 +682,13 @@
   function restoreUI() { try { return JSON.parse(sessionStorage.getItem('dk.ui') || 'null'); } catch (e) { return null; } }
 
   // ---------- 모바일 아래 시트 ----------
+  // 시트는 아래 탭 위에 떠 있는 카드라, 아래로 내려간 만큼은 잘라서 탭 뒤로 비치지 않게 해요
+  function moveSheet(y) {
+    panel.style.transform = `translateY(${y}px)`;
+    // 위·옆 그림자는 남기고, 보이는 아래쪽 끝은 둥근 모서리로 잘라요
+    const W = panel.offsetWidth, B = panel.offsetHeight - y, r = 24, m = 40;
+    panel.style.clipPath = `path('M${-m} ${-m}H${W + m}V${B - r}H${W}Q${W} ${B} ${W - r} ${B}H${r}Q0 ${B} 0 ${B - r}H${-m}Z')`;
+  }
   function snapY(state) {
     const H = panel.offsetHeight;
     if (state === 'full') return 0;
@@ -689,12 +696,12 @@
     return Math.max(0, H - 58);
   }
   function setSheet(state, keepMap) {
-    if (isDesk()) { panel.style.transform = ''; view.style.paddingBottom = ''; document.documentElement.style.setProperty('--sv', '0px'); return; }
+    if (isDesk()) { panel.style.transform = ''; panel.style.clipPath = ''; view.style.paddingBottom = ''; document.documentElement.style.setProperty('--sv', '0px'); return; }
     const was = S.sheet;
     S.sheet = state;
     document.body.classList.toggle('sheetfull', state === 'full');
     const y = snapY(state);
-    panel.style.transform = `translateY(${y}px)`;
+    moveSheet(y);
     // 시트가 반쯤 열려 있어도 내용 끝(버튼 등)까지 스크롤할 수 있게 가려진 만큼 여백을 둬요
     view.style.paddingBottom = y ? `${y + 20}px` : '';
     // 지도 버튼·알림·지도 출처가 시트 바로 위에 오도록 시트 높이를 넘겨요
@@ -713,7 +720,7 @@
     grab.addEventListener('pointermove', (e) => {
       if (id !== e.pointerId) return;
       const dy = e.clientY - y0; if (Math.abs(dy) > 4) moved = true;
-      panel.style.transform = `translateY(${Math.min(snapY('peek'), Math.max(0, start + dy))}px)`;
+      moveSheet(Math.min(snapY('peek'), Math.max(0, start + dy)));
     });
     const end = (e) => {
       if (id !== e.pointerId) return; id = null; panel.classList.remove('dragging');
