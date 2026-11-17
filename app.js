@@ -347,6 +347,10 @@
   const syncLabels = () => document.getElementById('map').classList.toggle('low-zoom', map.getZoom() < 14);
   map.on('zoomend', syncLabels);
   L.control.attribution({ position: 'bottomleft', prefix: false }).addTo(map);
+  // 모바일: 출처는 위쪽 구석의 작은 ⓘ로 접어 두고, 누르면 펼쳐요 (시트를 내릴 때 걸리지 않게)
+  { const ac = map.attributionControl.getContainer(); ac.classList.add('mini');
+    L.DomEvent.on(ac, 'click', (e) => { if (getComputedStyle(ac).position !== 'fixed') return; if (e.target.closest('a') && ac.classList.contains('open')) return; L.DomEvent.preventDefault(e); ac.classList.toggle('open'); });
+    L.DomEvent.disableClickPropagation(ac); map.on('movestart', () => ac.classList.remove('open')); }
   L.control.zoom({ position: 'bottomleft' }).addTo(map);
   const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
   // 기본 지도는 OpenFreeMap 벡터 지도 (무료, 지명은 영어). 상세 지도(OSM)는 토글로 바꿀 수 있어요

@@ -98,7 +98,10 @@ nav button.on{color:#fff;font-weight:700}
   #topbar{transition:opacity .15s}
   body.sheetfull #topbar,body.sheetfull .leaflet-control-container{opacity:0;pointer-events:none}
   body.sheetfull #topbar > *{pointer-events:none}
-  .leaflet-control-attribution{font-size:9px;opacity:.8}
+  #map .leaflet-control-attribution.mini{position:fixed;left:12px;top:calc(env(safe-area-inset-top) + 100px);margin:0;width:24px;height:24px;padding:0;border-radius:999px;overflow:hidden;font-size:0;line-height:1;white-space:nowrap;background:var(--card);color:var(--sub);box-shadow:0 2px 8px rgba(0,0,0,.14);opacity:.9;cursor:pointer}
+  #map .leaflet-control-attribution.mini::before{content:'i';display:block;width:24px;height:24px;line-height:24px;text-align:center;font:italic 700 13px/24px Georgia,serif}
+  #map .leaflet-control-attribution.mini.open{width:auto;height:auto;max-width:calc(100vw - 24px);white-space:normal;padding:5px 10px;border-radius:12px;font-size:10px;line-height:1.45;opacity:1}
+  #map .leaflet-control-attribution.mini.open::before{display:none}
   /* 모바일 글자 크기 */
   html,body{font-size:14px;line-height:1.6}
   #mapbtns{top:auto;bottom:calc(var(--sv,118px) + 12px);right:12px;transition:bottom .28s}
