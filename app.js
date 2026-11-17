@@ -369,18 +369,22 @@
     });
     st.layers.forEach((l) => {
       if (l.layout && l.layout['text-field']) l.layout['text-field'] = nm;
-      if (dark) return;
+      // 밝은 화면 / 어두운 화면 색 (어두운 화면은 바탕보다 길·물·공원을 한 단계 밝게 해서 보이게)
+      const C = dark
+        ? { bg: '#1C2326', water: '#21404F', river: '#2A5266', park: '#22382C', rail: '#56616A', bld: '#283033', mw: '#6B5A3E', road: '#3F4A4F', minor: '#333D41', casing: '#232B2E', place: '#E3E9EC', label: '#AEB8BD', wlabel: '#7FB1C9', halo: 'rgba(16,20,22,.85)' }
+        : { bg: '#EDF0EE', water: '#B4D8E7', river: '#A6D0E2', park: '#CBE5D2', rail: '#A7B2BC', bld: '#DEE2E4', mw: '#F6DDB0', road: '#FFFFFF', minor: '#FFFFFF', casing: '#D5DAD9', place: '#3E4A52', label: '#5E6A70', wlabel: '#5E8FA6', halo: 'rgba(255,255,255,.9)' };
       const P = (l.paint = l.paint || {});
-      if (l.type === 'background') P['background-color'] = '#EDF0EE';
-      if (/water/.test(l.id) && l.type === 'fill') P['fill-color'] = '#B4D8E7';
-      if (/waterway/.test(l.id) && l.type === 'line') P['line-color'] = '#A6D0E2';
-      if (/park|landcover_wood|landuse_park|grass/.test(l.id) && l.type === 'fill') P['fill-color'] = '#CBE5D2';
-      if (/railway/.test(l.id) && l.type === 'line') P['line-color'] = '#A7B2BC';
-      if (/building/.test(l.id) && l.type === 'fill') P['fill-color'] = '#DEE2E4';
-      if (/motorway/.test(l.id) && l.type === 'line' && !/casing/.test(l.id)) P['line-color'] = '#F6DDB0';
-      if (/major|primary|trunk/.test(l.id) && l.type === 'line' && !/casing/.test(l.id)) P['line-color'] = '#FFFFFF';
-      if (/casing/.test(l.id) && l.type === 'line') P['line-color'] = '#D5DAD9';
-      if (l.type === 'symbol' && l.layout && l.layout['text-field']) { P['text-color'] = /water/.test(l.id) ? '#5E8FA6' : /place|label_(city|town|village|other|state|country)/.test(l.id) ? '#3E4A52' : '#5E6A70'; P['text-halo-color'] = 'rgba(255,255,255,.9)'; }
+      if (l.type === 'background') P['background-color'] = C.bg;
+      if (/water/.test(l.id) && l.type === 'fill') P['fill-color'] = C.water;
+      if (/waterway/.test(l.id) && l.type === 'line') P['line-color'] = C.river;
+      if (/park|landcover_wood|landuse_park|grass/.test(l.id) && l.type === 'fill') { P['fill-color'] = C.park; if (dark) P['fill-opacity'] = 1; }
+      if (/railway|rail/.test(l.id) && l.type === 'line') P['line-color'] = C.rail;
+      if (/building/.test(l.id) && l.type === 'fill') { P['fill-color'] = C.bld; if (dark) P['fill-outline-color'] = C.road; }
+      if (/landuse|landcover|aeroway|residential/.test(l.id) && l.type === 'fill' && dark && !/park|wood|grass/.test(l.id)) P['fill-color'] = '#21292C';
+      if (l.type === 'line' && /highway|road|street|path|minor|tunnel|bridge|aeroway/.test(l.id) && !/rail/.test(l.id)) {
+        P['line-color'] = /casing/.test(l.id) ? C.casing : /motorway/.test(l.id) ? C.mw : /major|primary|trunk|secondary/.test(l.id) ? C.road : C.minor;
+      }
+      if (l.type === 'symbol' && l.layout && l.layout['text-field']) { P['text-color'] = /water/.test(l.id) ? C.wlabel : /place|label_(city|town|village|other|state|country)/.test(l.id) ? C.place : C.label; P['text-halo-color'] = C.halo; P['text-halo-width'] = 1.4; }
     });
     return st;
   }
