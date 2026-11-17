@@ -349,22 +349,57 @@
   L.control.attribution({ position: 'bottomleft', prefix: false }).addTo(map);
   L.control.zoom({ position: 'bottomleft' }).addTo(map);
   const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-  // 기본 지도는 MapTiler Streets, 상세 지도(OSM)는 토글로 바꿀 수 있어요 (다크 모드는 CSS로 반전)
-  // MapTiler 키는 웹에 공개되는 키라서 MapTiler 설정에서 허용 주소로 제한해 둬요.
+  // 기본 지도는 OpenFreeMap 벡터 지도 (무료, 지명은 영어). 상세 지도(OSM)는 토글로 바꿀 수 있어요
+  // MapTiler 키는 장소 검색에만 써요 (웹에 공개되는 키라서 MapTiler 설정에서 허용 주소로 제한해 둬요)
   const MT_KEY = 'NDPQPUp7siqFUbAkTieA';
-  const grey = L.tileLayer('https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}.png?key=' + MT_KEY, {
-    tileSize: 512, zoomOffset: -1, minZoom: 1, maxZoom: 19, crossOrigin: true,
-    attribution: '<a href="https://www.maptiler.com/copyright/" target="_blank" rel="noopener">© MapTiler</a> <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap contributors</a>'
-  });
+  const OFM = 'https://tiles.openfreemap.org/styles/' + (dark ? 'dark' : 'positron');
+  const ATT_V = '<a href="https://openfreemap.org" target="_blank" rel="noopener">OpenFreeMap</a> <a href="https://www.openmaptiles.org/" target="_blank" rel="noopener">© OpenMapTiles</a> <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap contributors</a>';
   const osm = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19, crossOrigin: true, attribution: '© OpenStreetMap contributors'
   });
-  let tiles = (store.get('tiles', 'mt') === 'osm' ? osm : grey).addTo(map);
+  // 스타일을 앱에 맞게 고쳐요: 지명은 영어(없으면 로마자, 그것도 없으면 현지 이름), 도로 번호 상자는 숨기고, 색은 앱 톤으로
+  function tuneStyle(st) {
+    const nm = ['coalesce', ['get', 'name:en'], ['get', 'name_en'], ['get', 'name:latin'], ['get', 'name']];
+    st.layers = st.layers.filter((l) => !(l.type === 'symbol' && (/shield/.test(l.id) || (l['source-layer'] === 'transportation_name' && l.layout && l.layout['icon-image']))));
+    st.layers.forEach((l) => {
+      if (l.layout && l.layout['text-field']) l.layout['text-field'] = nm;
+      if (dark) return;
+      const P = (l.paint = l.paint || {});
+      if (l.type === 'background') P['background-color'] = '#EEF1F4';
+      if (/water/.test(l.id) && l.type === 'fill') P['fill-color'] = '#CFE3EA';
+      if (/park|landcover_wood|landuse_park|grass/.test(l.id) && l.type === 'fill') P['fill-color'] = '#DCEBE3';
+      if (/railway/.test(l.id) && l.type === 'line') P['line-color'] = '#B9C2CB';
+      if (/building/.test(l.id) && l.type === 'fill') P['fill-color'] = '#E2E6EA';
+    });
+    return st;
+  }
+  const hasGL = (() => { try { const c = document.createElement('canvas'); return !!(c.getContext('webgl2') || c.getContext('webgl')); } catch (e) { return false; } })();
+  let vec = null, vecWant = hasGL && store.get('tiles', 'v') !== 'osm', tiles = null;
+  const loadJS = (u) => new Promise((ok, no) => { const sc = document.createElement('script'); sc.src = u; sc.onload = ok; sc.onerror = no; document.head.appendChild(sc); });
+  function useOSM() { if (tiles === osm) return; if (tiles) map.removeLayer(tiles); tiles = osm.addTo(map); }
+  async function useVector() {
+    try {
+      if (!vec) {
+        if (!document.getElementById('mlcss')) { const ln = document.createElement('link'); ln.id = 'mlcss'; ln.rel = 'stylesheet'; ln.href = '/vendor/maplibre-gl.css'; document.head.appendChild(ln); }
+        if (!window.maplibregl) await loadJS('/vendor/maplibre-gl.js');
+        if (!L.maplibreGL) await loadJS('/vendor/leaflet-maplibre-gl.js');
+        const st = tuneStyle(await (await fetch(OFM)).json());
+        vec = L.maplibreGL({ style: st, attribution: ATT_V });
+        vec.on('add', () => { const g = vec.getMaplibreMap(); if (g && !g._dkErr) { g._dkErr = 1; g.on('error', (e) => { if (e && e.sourceId && ++tileErr >= 6) useOfflineBase(); }); } });
+      }
+      if (!vecWant) return;
+      if (tiles && tiles !== vec) map.removeLayer(tiles);
+      if (tiles !== vec) tiles = vec.addTo(map);
+    } catch (e) { console.warn('vector map', e); vecWant = false; useOSM(); if (!navigator.onLine) useOfflineBase(); }
+  }
+  if (vecWant) { useVector(); } else useOSM();
   // 지도 종류 바꾸기: 오른쪽 지도 버튼 묶음에 있어요
   function switchTiles() {
-    const next = tiles === grey ? osm : grey;
-    map.removeLayer(tiles); tiles = next.addTo(map); store.set('tiles', next === osm ? 'osm' : 'mt');
-    toast(next === osm ? 'OSM 지도로 바꿨어요. 골목·건물이 더 자세해요.' : '기본 지도로 바꿨어요.');
+    if (!hasGL) return toast('이 기기에서는 기본 지도를 그릴 수 없어서 OSM 지도만 보여요.');
+    vecWant = tiles !== vec;
+    store.set('tiles', vecWant ? 'v' : 'osm');
+    if (vecWant) useVector(); else useOSM();
+    toast(vecWant ? '기본 지도로 바꿨어요.' : 'OSM 지도로 바꿨어요. 골목·건물이 더 자세해요.');
   }
   // 인터넷이 안 되거나 타일이 안 오면 앱에 들어 있는 간략 지도를 깔아요
   let baseOn = false, tileErr = 0;
@@ -388,7 +423,7 @@
     document.head.appendChild(sc);
   }
   const onTileErr = (e) => { if (e.tile) e.tile.style.visibility = 'hidden'; if (++tileErr >= 3) useOfflineBase(); };
-  grey.on('tileerror', onTileErr); osm.on('tileerror', onTileErr);
+  osm.on('tileerror', onTileErr);
   if (!navigator.onLine) useOfflineBase();
 
   const zoomCls = () => { const z = map.getZoom(), c = map.getContainer().classList; c.toggle('z-st', z < 14); c.toggle('z-fd', z < 15); c.toggle('z-lb', z < 12); c.toggle('z-wd', z < 11); };
@@ -1644,11 +1679,16 @@
     const pts = [];
     R.DAYS.forEach((d) => (d.vis || []).forEach((i) => { const s = d.stops[i]; if (s && s[3] != null) pts.push([s[3], s[4]]); }));
     if (!pts.length) return;
-    // MapTiler 512px 타일: z9~12는 도시 전체, z13~15는 장소 주변 (약 300m)만
-    const urls = new Set(), add = (z, la, ln) => urls.add(`https://api.maptiler.com/maps/streets-v2/${z}/${tx2(ln, z)}/${ty2(la, z)}.png?key=${MT_KEY}`);
+    // 벡터 지도 타일 (최대 z14): z9~12는 도시 전체, z13~14는 장소 주변만. OSM 지도로 보고 있을 땐 따로 받지 않아요
+    const g = tiles === vec && vec && vec.getMaplibreMap && vec.getMaplibreMap();
+    const src = g && g.getSource && g.getSource('openmaptiles');
+    const tpl = src && src.tiles && src.tiles[0];
+    if (!tpl) { if (tiles === vec) offlineSoon(15000); return; }
+    const urls = new Set(), add = (z, la, ln) => urls.add(tpl.replace('{z}', z).replace('{x}', tx2(ln, z)).replace('{y}', ty2(la, z)));
+    const near = [[0, 0], [0.006, 0.007], [0.006, -0.007], [-0.006, 0.007], [-0.006, -0.007]];
     pts.forEach(([la, ln]) => {
       for (let z = 9; z <= 12; z++) add(z, la, ln);
-      for (let z = 13; z <= 15; z++) [[0, 0], [0.003, 0.0035], [0.003, -0.0035], [-0.003, 0.0035], [-0.003, -0.0035]].forEach(([a, b]) => add(z, la + a, ln + b));
+      for (let z = 13; z <= 14; z++) near.forEach(([a, b]) => add(z, la + a, ln + b));
     });
     const list = [...urls].slice(0, 900);
     offBusy = true; let got = 0, have = 0;

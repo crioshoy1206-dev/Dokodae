@@ -1,5 +1,5 @@
-const V = 'th-v31';
-const FILES = ['/', '/index.html', '/boot.js', '/cloud.js', '/vendor/firebase.js', '/app.js', '/data/cards.js', '/data/base.js', '/rail.js', '/manifest.json', '/icon-192.png', '/icon-512.png', '/apple-touch-icon.png', '/favicon.png', '/fonts/gn-kill-gothic-ub-kana.woff2'];
+const V = 'th-v32';
+const FILES = ['/', '/index.html', '/boot.js', '/cloud.js', '/vendor/firebase.js', '/app.js', '/data/cards.js', '/data/base.js', '/rail.js', '/vendor/maplibre-gl.js', '/vendor/maplibre-gl.css', '/vendor/leaflet-maplibre-gl.js', '/manifest.json', '/icon-192.png', '/icon-512.png', '/apple-touch-icon.png', '/favicon.png', '/fonts/gn-kill-gothic-ub-kana.woff2'];
 const TILES = 'th-tiles';
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(V).then((c) => c.addAll(FILES)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', (e) => { e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== V && k !== TILES).map((k) => caches.delete(k)))).then(() => self.clients.claim())); });
@@ -7,7 +7,7 @@ self.addEventListener('fetch', (e) => {
   const u = new URL(e.request.url);
   if (e.request.method !== 'GET') return;
   // 지도 타일: 한 번 본 곳은 저장해 두고 오프라인에서도 보여줘요
-  if (u.hostname === 'tile.openstreetmap.org' || u.hostname === 'api.maptiler.com' || u.hostname === 'cdnjs.cloudflare.com' || u.hostname === 'cdn.jsdelivr.net') {
+  if (u.hostname === 'tile.openstreetmap.org' || u.hostname === 'tiles.openfreemap.org' || u.hostname === 'api.maptiler.com' || u.hostname === 'cdnjs.cloudflare.com' || u.hostname === 'cdn.jsdelivr.net') {
     if (u.hostname === 'api.maptiler.com' && u.pathname.startsWith('/geocoding/')) return;
     e.respondWith(caches.open(TILES).then((c) => c.match(e.request).then((m) => m || fetch(e.request).then((r) => { if (r.ok) c.put(e.request, r.clone()); return r; }))));
     return;

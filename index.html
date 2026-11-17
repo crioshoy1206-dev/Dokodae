@@ -22,8 +22,8 @@ button{cursor:pointer}
 
 /* ---------- 배경 지도 ---------- */
 #map{position:fixed;inset:0;z-index:0;background:#dfe6e6}
-@media (prefers-color-scheme:dark){#map{background:#1b2224}.leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) brightness(.85) contrast(.9)}}
-.leaflet-tile-pane{filter:saturate(.45) brightness(1.04) contrast(.92)}
+@media (prefers-color-scheme:dark){#map{background:#1b2224}.leaflet-tile-pane .leaflet-layer{filter:invert(1) hue-rotate(180deg) brightness(.85) contrast(.9)}}
+.leaflet-tile-pane .leaflet-layer{filter:saturate(.45) brightness(1.04) contrast(.92)}
 .leaflet-tooltip.st{font-size:12px}
 #map.low-zoom .leaflet-tooltip.st{display:none}
 .leaflet-container{font:inherit}
