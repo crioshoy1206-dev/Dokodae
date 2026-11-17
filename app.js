@@ -365,11 +365,16 @@
       if (l.layout && l.layout['text-field']) l.layout['text-field'] = nm;
       if (dark) return;
       const P = (l.paint = l.paint || {});
-      if (l.type === 'background') P['background-color'] = '#EEF1F4';
-      if (/water/.test(l.id) && l.type === 'fill') P['fill-color'] = '#CFE3EA';
-      if (/park|landcover_wood|landuse_park|grass/.test(l.id) && l.type === 'fill') P['fill-color'] = '#DCEBE3';
-      if (/railway/.test(l.id) && l.type === 'line') P['line-color'] = '#B9C2CB';
-      if (/building/.test(l.id) && l.type === 'fill') P['fill-color'] = '#E2E6EA';
+      if (l.type === 'background') P['background-color'] = '#EDF0EE';
+      if (/water/.test(l.id) && l.type === 'fill') P['fill-color'] = '#B4D8E7';
+      if (/waterway/.test(l.id) && l.type === 'line') P['line-color'] = '#A6D0E2';
+      if (/park|landcover_wood|landuse_park|grass/.test(l.id) && l.type === 'fill') P['fill-color'] = '#CBE5D2';
+      if (/railway/.test(l.id) && l.type === 'line') P['line-color'] = '#A7B2BC';
+      if (/building/.test(l.id) && l.type === 'fill') P['fill-color'] = '#DEE2E4';
+      if (/motorway/.test(l.id) && l.type === 'line' && !/casing/.test(l.id)) P['line-color'] = '#F6DDB0';
+      if (/major|primary|trunk/.test(l.id) && l.type === 'line' && !/casing/.test(l.id)) P['line-color'] = '#FFFFFF';
+      if (/casing/.test(l.id) && l.type === 'line') P['line-color'] = '#D5DAD9';
+      if (l.type === 'symbol' && l.layout && l.layout['text-field']) { P['text-color'] = /water/.test(l.id) ? '#5E8FA6' : /place|label_(city|town|village|other|state|country)/.test(l.id) ? '#3E4A52' : '#5E6A70'; P['text-halo-color'] = 'rgba(255,255,255,.9)'; }
     });
     return st;
   }
