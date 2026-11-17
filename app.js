@@ -29,7 +29,7 @@
     loc: '<circle cx="12" cy="12" r="6.5"/><circle cx="12" cy="12" r="2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3"/>',
     fit: '<path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/>',
     layers: '<path d="m12 4 8.5 4.5L12 13 3.5 8.5z"/><path d="m3.5 12.5 8.5 4.5 8.5-4.5M3.5 16.5 12 21l8.5-4.5"/>',
-    plus: '<path d="M12 5v14M5 12h14"/>', x: '<path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/>',
+    plus: '<path d="M12 5v14M5 12h14"/>', spark: '<path d="M12 3.5l1.9 5.1 5.1 1.9-5.1 1.9L12 17.5l-1.9-5.1L5 10.5l5.1-1.9z"/><path d="M18.5 15.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z"/>', x: '<path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/>',
     star: '<path d="m12 4 2.4 5 5.4.7-4 3.8 1 5.4L12 16.3 7.2 18.9l1-5.4-4-3.8 5.4-.7z"/>',
     ext: '<path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>'
   };
@@ -1126,7 +1126,8 @@
     const usedLines = [];
     R.PLANS[d.id].forEach((it) => { if (typeof it !== 'number' && !usedLines.includes(R.LINES[it[0]])) usedLines.push(R.LINES[it[0]]); });
     view.innerHTML = `${top}
-      <div class="dayhead"><div class="row" style="justify-content:space-between;flex-wrap:nowrap;align-items:flex-start"><h2>${esc(d.title)}</h2>${VIEW ? '' : `<button class="btn ${EM ? '' : 'ghost'} sm" id="editMode">${EM ? '편집 끝내기' : I('edit') + ' 일정 편집'}</button>`}</div><div class="sub">${esc(d.sub)}</div></div>
+      <div class="dayhead"><div class="row" style="justify-content:space-between;flex-wrap:nowrap;align-items:flex-start"><h2>${esc(d.title)}</h2>${VIEW ? '' : `<button class="btn ${EM ? '' : 'ghost'} sm" id="editMode">${EM ? '편집 끝내기' : I('edit') + ' 일정 편집'}</button>`}</div><div class="sub">${esc(d.sub)}</div>${VIEW ? '' : `<div class="airow"><button class="aibtn${S.ai && S.ai.day === d.id && S.ai.mode === 'polish' ? ' on' : ''}" id="aiPolish">${I('spark')} AI로 일정 다듬기</button><button class="aibtn${S.ai && S.ai.day === d.id && S.ai.mode === 'suggest' ? ' on' : ''}" id="aiSuggest">${I('pin')} 근처 가볼 곳 추천</button></div>`}</div>
+      ${S.ai && S.ai.day === d.id ? aiBoxHTML(d) : ''}
       ${usedLines.length || d.meals.length ? `<div class="legend">${usedLines.map((l) => `<span><i style="width:16px;height:5px;border-radius:3px;background:${l.c};display:inline-block"></i>${esc(l.n)}</span>`).join('')}<span><i style="width:16px;border-top:3px dotted var(--c);display:inline-block"></i>도보</span><span style="color:var(--food)"><i class="dia"></i>맛집 후보</span></div>` : ''}
       <div class="route">${stops || `<div class="empty muted">아직 이날 일정이 없어요.${VIEW ? '' : ' 아래 "이날 일정 추가"로 장소를 넣으면 지도에 동선이 그려져요.'}</div>`}</div>
       ${VIEW ? '' : S.edit && S.edit.i === 'new' ? editorHTML(d) : `<button class="addstop" id="addStop">${I('plus')} 이날 일정 추가</button>`}
@@ -1138,6 +1139,83 @@
         <label class="muted" for="codeIn" style="display:block;margin:10px 0 6px">AI 접근 코드 (받은 경우에만)</label>
         <input type="text" id="codeIn" value="${esc(store.get('code', ''))}" placeholder="없으면 비워 두세요">
       </details>${acctHTML()}`;
+  }
+
+  // ---------- AI 일정 도우미: 다듬기 · 근처 추천 (결과는 골라서 넣어요) ----------
+  const aiStops = (d) => d.vis.map((i) => { const x = d.stops[i]; return { k: x.key, t: x[0], n: x[1], m: x[2] || '', todo: todoList(d, x), go: x.go || undefined, lat: x[3] == null ? undefined : x[3], lng: x[4] == null ? undefined : x[4] }; });
+  const stopName = (d, k) => { const i = d.stops.findIndex((x) => x.key === k && !x.del); return i >= 0 ? d.stops[i][1] : ''; };
+  const goTxt = (g) => (!g ? '' : g.m === 'walk' ? `걸어서${g.min ? ' ' + g.min + '분' : ''}` : `${g.ln || GO_NAME[g.m] || ''}${g.min ? ' · ' + g.min + '분' : ''}`);
+  function aiBoxHTML(d) {
+    const A = S.ai, P = A.mode === 'polish', r = A.res;
+    const head = `<div class="row" style="justify-content:space-between;flex-wrap:nowrap"><b>${P ? 'AI로 일정 다듬기' : '근처 가볼 곳 추천'}</b><button class="tag" id="aiClose" aria-label="닫기">${I('x')}</button></div>`;
+    const ask = P ? `<p class="muted" style="margin:6px 0 10px">이동 시간, 영업시간, 동선 순서를 보고 고칠 곳을 알려줘요. 바로 바뀌지 않고, 고른 것만 반영돼요.</p>`
+      : `<p class="muted" style="margin:6px 0 8px">이날 동선 근처에서 넣을 만한 곳을 골라 줘요.</p><div class="row" style="flex-wrap:nowrap;gap:6px"><input type="text" id="aiWish" value="${esc(A.wish || '')}" placeholder="바라는 것 (예: 카페, 야경, 비 오는 날)" style="flex:1;min-width:0"></div>`;
+    const go = `<button class="btn" id="aiGo" style="width:100%;margin-top:10px"${A.busy ? ' disabled' : ''}>${A.busy ? 'AI가 보는 중… (20초쯤)' : r ? '다시 받기' : P ? '다듬어 보기' : '추천받기'}</button>`;
+    let body = '';
+    if (A.err) body += `<p class="muted" style="color:var(--warn);margin-top:10px">${esc(A.err)}</p>`;
+    if (r && P) {
+      const rows = [];
+      (r.edits || []).forEach((e, j) => rows.push({ id: 'e' + j, title: stopName(d, e.k) || e.n, lines: [e.t && `시간 → ${e.t}`, e.n && `이름 → ${e.n}`, e.m && `메모 → ${e.m}`, e.go && `오는 방법 → ${goTxt(e.go)}`, e.todo && `할 일 → ${e.todo.join(' · ')}`].filter(Boolean), why: e.why, tag: '고치기' }));
+      (r.adds || []).forEach((e, j) => rows.push({ id: 'a' + j, title: e.n, lines: [`${e.t}${e.after ? ' · ' + stopName(d, e.after) + ' 다음' : ''}`, e.m].filter(Boolean), why: e.why, tag: '넣기' }));
+      (r.dels || []).forEach((e, j) => rows.push({ id: 'd' + j, title: stopName(d, e.k), lines: [], why: e.why, tag: '빼기' }));
+      body += `${r.summary ? `<p style="margin:12px 0 4px">${esc(r.summary)}</p>` : ''}`;
+      body += rows.length ? rows.map((x) => `<label class="airow2"><input type="checkbox" data-aipick="${x.id}"${A.off.has(x.id) ? '' : ' checked'}><div><div><span class="aitag">${x.tag}</span><b>${esc(x.title)}</b></div>${x.lines.map((l) => `<div class="det">${esc(l)}</div>`).join('')}${x.why ? `<div class="muted">${esc(x.why)}</div>` : ''}</div></label>`).join('')
+        + `<button class="btn" id="aiApply" style="width:100%;margin-top:10px"${A.busy ? ' disabled' : ''}>고른 ${rows.length - [...A.off].filter((v) => rows.some((x) => x.id === v)).length}개 반영하기</button>` : `<p class="muted">고칠 곳이 없어요. 지금 일정 그대로 좋아요.</p>`;
+    }
+    if (r && !P) {
+      body += (r.items || []).map((x, j) => `<div class="aisug"><div class="row" style="justify-content:space-between;flex-wrap:nowrap;align-items:flex-start"><div style="min-width:0"><div>${x.kind ? `<span class="aitag">${esc(x.kind)}</span>` : ''}<b>${esc(x.n)}</b></div><div class="det">${esc([x.t, x.stay ? x.stay + '분 머물기' : '', x.after ? stopName(d, x.after) + ' 다음' : '', goTxt(x.go)].filter(Boolean).join(' · '))}</div><div class="muted">${esc(x.why)}</div></div>${A.added.has(j) ? `<span class="tag">넣었어요</span>` : `<button class="btn sm" data-aiadd="${j}"${A.busy ? ' disabled' : ''}>${I('plus')} 넣기</button>`}</div></div>`).join('') || '<p class="muted">추천을 찾지 못했어요. 바라는 것을 바꿔 다시 받아 보세요.</p>';
+    }
+    return `<div class="card aibox" id="aiBox">${head}${r ? '' : ask}${r && !P ? ask : ''}${r && P ? '' : go}${body}${r && P ? go.replace('class="btn"', 'class="btn ghost"') : ''}</div>`;
+  }
+  async function runAI() {
+    const d = dayOf(S.day), A = S.ai; if (!A || A.busy) return;
+    if (!navigator.onLine) { A.err = '인터넷이 연결돼야 AI를 쓸 수 있어요.'; return renderPlan(); }
+    const w = $('#aiWish'); if (w) A.wish = w.value;
+    A.busy = true; A.err = ''; renderPlan();
+    try {
+      const ac = new AbortController(), to = setTimeout(() => ac.abort(), 60000);
+      const r = await fetch('/api/plan', { signal: ac.signal, method: 'POST', headers: { 'content-type': 'application/json', 'x-access-code': store.get('code', '') }, body: JSON.stringify({ mode: A.mode, wish: A.wish || '', trip: UT ? UT.title : '', day: { date: d.id.slice(1), title: d.title, stops: aiStops(d) } }) });
+      const j = await r.json().catch(() => ({})); clearTimeout(to);
+      if (!r.ok) throw new Error(j.message || 'AI 응답을 받지 못했어요.');
+      A.res = j; A.off = new Set(); A.added = new Set();
+    } catch (e) { A.err = e.name === 'AbortError' ? 'AI가 너무 오래 걸려요. 잠시 후 다시 해 주세요.' : e.message; }
+    A.busy = false; if (S.ai === A) renderPlan();
+  }
+  // 이날 동선 근처에서 장소 위치 찾기 (50km 넘게 떨어지면 버려요)
+  async function geoNear(d, q) {
+    const pts = d.vis.map((i) => d.stops[i]).filter((x) => x[3] != null);
+    const c = pts.length ? [pts.reduce((a, x) => a + x[3], 0) / pts.length, pts.reduce((a, x) => a + x[4], 0) / pts.length] : null;
+    try {
+      const r = await fetch(`https://api.maptiler.com/geocoding/${encodeURIComponent(q)}.json?key=${MT_KEY}&country=jp&limit=1&language=ko${c ? `&proximity=${c[1].toFixed(4)},${c[0].toFixed(4)}` : ''}`);
+      const j = await r.json(), f = j.features && j.features[0];
+      if (f && f.center) { const p = { lat: +f.center[1].toFixed(5), lng: +f.center[0].toFixed(5) }; if (!c || L.latLng(c).distanceTo([p.lat, p.lng]) < 50000) return p; }
+    } catch (e) {}
+    return { lat: null, lng: null };
+  }
+  const newAdd = async (d, x) => { const p = await geoNear(d, x.ja || x.n); const a = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 5), t: x.t || '12:00', n: x.n, m: x.m || '', todo: x.todo || [], lat: p.lat, lng: p.lng }; if (x.go) a.go = x.go; edOf(d).add.push(a); return a; };
+  async function aiAdd(j) {
+    const d = dayOf(S.day), A = S.ai, x = A && A.res && A.res.items && A.res.items[j]; if (!x || A.busy) return;
+    A.busy = true; renderPlan();
+    const a = await newAdd(d, x); A.added.add(j); A.busy = false;
+    saveEdits(); render(); toast(a.lat == null ? `"${x.n}"을 넣었어요. 위치를 못 찾아서 일정 편집에서 위치를 찍어 주세요.` : `"${x.n}"을 ${x.t || ''} 일정에 넣었어요.`);
+  }
+  async function aiApply() {
+    const d = dayOf(S.day), A = S.ai, r = A && A.res; if (!r || A.busy) return;
+    A.busy = true; renderPlan();
+    const e = edOf(d), at = (k) => d.stops.findIndex((x) => x.key === k && !x.del); let n = 0;
+    for (const [j, x] of (r.edits || []).entries()) {
+      if (A.off.has('e' + j)) continue; const i = at(x.k); if (i < 0) continue; const st = d.stops[i];
+      if (st.custom != null) { const a = e.add.find((v) => v.id === st.custom); if (!a) continue; ['t', 'n', 'm', 'todo'].forEach((f) => { if (x[f] != null) a[f] = x[f]; }); if (x.go) a.go = x.go; }
+      else { const m = e.mod[i] = e.mod[i] || {}; ['t', 'n', 'm', 'todo'].forEach((f) => { if (x[f] != null) m[f] = x[f]; }); }
+      n++;
+    }
+    for (const [j, x] of (r.dels || []).entries()) {
+      if (A.off.has('d' + j)) continue; const i = at(x.k); if (i < 0) continue; const st = d.stops[i];
+      if (st.custom != null) e.add = e.add.filter((v) => v.id !== st.custom); else if (!e.del.includes(i)) e.del.push(i);
+      n++;
+    }
+    for (const [j, x] of (r.adds || []).entries()) { if (A.off.has('a' + j)) continue; await newAdd(d, x); n++; }
+    S.ai = null; saveEdits(); render(); toast(n ? `AI 제안 ${n}개를 반영했어요.` : '반영할 것을 고르지 않았어요.');
   }
 
   // ---------- 사용법 (처음 한 번) ----------
@@ -1726,6 +1804,11 @@
       store.set('edits', {});
       return reopenTrip();
     }
+    if (t.id === 'aiPolish' || t.id === 'aiSuggest') { const m = t.id === 'aiPolish' ? 'polish' : 'suggest'; const did = dayOf(S.day).id; S.ai = S.ai && S.ai.day === did && S.ai.mode === m ? null : { mode: m, day: did, off: new Set(), added: new Set() }; renderPlan(); const b = $('#aiBox'); if (b) b.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); return; }
+    if (t.id === 'aiClose') { S.ai = null; return renderPlan(); }
+    if (t.id === 'aiGo') return runAI();
+    if (t.id === 'aiApply') return aiApply();
+    if (t.dataset.aiadd != null) return aiAdd(+t.dataset.aiadd);
     if (t.id === 'editMode') { if (S.editMode && !okToLeave()) return; S.editMode = !S.editMode; if (!S.editMode) { closeEditor(); backPop('edit'); } return renderPlan(); }
     if (t.id === 'addStop') return openEditor('new');
     if (t.id === 'edCancel') { closeEditor(); backPop('edit'); return renderPlan(); }
@@ -1785,6 +1868,10 @@
     if (ev.target.id === 'q') { ev.target.style.height = 'auto'; ev.target.style.height = Math.min(120, ev.target.scrollHeight) + 'px'; }
   });
   document.addEventListener('change', async (ev) => {
+    if (ev.target.dataset && ev.target.dataset.aipick && S.ai) {
+      const id = ev.target.dataset.aipick; if (ev.target.checked) S.ai.off.delete(id); else S.ai.off.add(id);
+      const b = $('#aiApply'), n = document.querySelectorAll('[data-aipick]:checked').length; if (b) b.textContent = `고른 ${n}개 반영하기`; return;
+    }
     if (ev.target.id === 'payD' && S.payF) { S.payF.d = ev.target.value; payDraft(S.payF); return; }
     if (ev.target.id === 'simIn') { store.set('sim', ev.target.value); const n = nowJST(); return setDay(ev.target.value ? ev.target.value.slice(0, 10) : (inTrip(n) ? n.d : TRIP_START)); }
     if (ev.target.id === 'impFile' && ev.target.files.length) {
