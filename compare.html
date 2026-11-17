@@ -28,7 +28,7 @@ header{padding:10px 14px 6px}h1{font-size:17px;margin:0 0 2px}p{margin:0;color:v
 <div class="spots" id="spots"></div>
 <div class="grid">
   <div class="pane"><div id="a"></div><span class="tag">지금 지도<small>MapTiler · 유료 전환 필요</small></span></div>
-  <div class="pane"><div id="b"></div><span class="tag">OpenFreeMap<small>무료 · 앱 색에 맞춤</small></span></div>
+  <div class="pane"><div id="b"></div><span class="tag">OpenFreeMap<small>무료 · 영어 지명</small></span></div>
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
@@ -40,11 +40,11 @@ L.tileLayer('https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}.png?key=' + MT
 
 const dark = matchMedia('(prefers-color-scheme: dark)').matches;
 const b = new maplibregl.Map({ container: 'b', style: 'https://tiles.openfreemap.org/styles/' + (dark ? 'dark' : 'positron'), center: [SPOTS[0][2], SPOTS[0][1]], zoom: SPOTS[0][3] - 1, attributionControl: { compact: true } });
-// 한국어 이름이 있으면 한국어, 없으면 현지 이름 · 색은 앱 톤(옅은 회색 바탕, 청록 포인트)으로
+// 지명은 영어로 (영어 이름이 없으면 로마자, 그것도 없으면 현지 이름) · 색은 앱 톤(옅은 회색 바탕, 청록 포인트)으로
 b.on('style.load', () => {
   const st = b.getStyle();
   st.layers.forEach((l) => {
-    if (l.layout && l.layout['text-field']) b.setLayoutProperty(l.id, 'text-field', ['coalesce', ['get', 'name:ko'], ['get', 'name:ja'], ['get', 'name']]);
+    if (l.layout && l.layout['text-field']) b.setLayoutProperty(l.id, 'text-field', ['coalesce', ['get', 'name:en'], ['get', 'name_en'], ['get', 'name:latin'], ['get', 'name']]);
     if (dark) return;
     if (l.type === 'background') b.setPaintProperty(l.id, 'background-color', '#EEF1F4');
     if (/water/.test(l.id) && l.type === 'fill') b.setPaintProperty(l.id, 'fill-color', '#CFE3EA');
