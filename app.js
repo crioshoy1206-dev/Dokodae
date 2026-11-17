@@ -368,7 +368,8 @@
     st.layers = st.layers.filter((l) => !(l.type === 'symbol' && (/shield|housenumber/.test(l.id) || ['poi', 'transportation_name', 'housenumber', 'mountain_peak'].includes(l['source-layer']))));
     st.layers.forEach((l) => {
       if (l.type !== 'symbol' || l['source-layer'] !== 'place') return;
-      if (/other|neighbo|hamlet|suburb|quarter/.test(l.id)) l.minzoom = Math.max(l.minzoom || 0, 14);
+      // 일본은 '아사쿠사 5', '다이토 2초메' 같은 번지 동네(quarter·neighbourhood)가 빽빽해서, 아사쿠사·우에노 같은 큰 동네(suburb)만 남겨요
+      if (/other|neighbo|hamlet|suburb|quarter/.test(l.id)) { l.filter = ['==', ['get', 'class'], 'suburb']; l.minzoom = Math.max(l.minzoom || 0, 12); }
       else if (/village/.test(l.id)) l.minzoom = Math.max(l.minzoom || 0, 12);
     });
     st.layers.forEach((l) => {
