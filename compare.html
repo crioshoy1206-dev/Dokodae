@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>지도 비교</title>
+<meta name="robots" content="noindex">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<style>
+:root{--bg:#F2F4F6;--card:#fff;--ink:#191F28;--sub:#6B7684;--pri:#0F7A68}
+@media (prefers-color-scheme:dark){:root{--bg:#101214;--card:#1B1E22;--ink:#ECEEF0;--sub:#9AA2AC;--pri:#3FC9A6}}
+*{box-sizing:border-box}html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:14px/1.5 -apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sans KR',sans-serif}
+header{padding:10px 14px 6px}h1{font-size:17px;margin:0 0 2px}p{margin:0;color:var(--sub);font-size:13px}
+.spots{display:flex;gap:6px;overflow-x:auto;padding:8px 14px;scrollbar-width:none}
+.spots button{flex:none;border:0;border-radius:999px;padding:6px 12px;background:var(--card);color:var(--ink);font-weight:600;font-size:13px;box-shadow:0 2px 8px rgba(0,0,0,.08)}
+.spots button.on{background:var(--ink);color:var(--bg)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:4px 14px 14px;height:calc(100% - 118px)}
+@media (max-width:700px){.grid{grid-template-columns:1fr;grid-template-rows:1fr 1fr}}
+.pane{position:relative;border-radius:20px;overflow:hidden;box-shadow:0 10px 30px rgba(17,24,39,.12);min-height:0}
+.pane>div{position:absolute;inset:0}
+.tag{position:absolute;z-index:1000;left:10px;top:10px;background:var(--card);color:var(--ink);border-radius:999px;padding:4px 12px;font-weight:700;font-size:13px;box-shadow:0 2px 8px rgba(0,0,0,.12);pointer-events:none}
+.tag small{color:var(--sub);font-weight:500;margin-left:4px}
+</style>
+</head>
+<body>
+<header><h1>지도 비교</h1><p>한쪽을 움직이면 다른 쪽도 같이 움직여요. 위 버튼으로 장소를 바꿔 보세요.</p></header>
+<div class="spots" id="spots"></div>
+<div class="grid">
+  <div class="pane"><div id="a"></div><span class="tag">지금 지도<small>MapTiler · 유료 전환 필요</small></span></div>
+  <div class="pane"><div id="b"></div><span class="tag">OpenFreeMap<small>무료 · 앱 색에 맞춤</small></span></div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script>
+const SPOTS = [['아키하바라', 35.6984, 139.7731, 16], ['아사쿠사', 35.7116, 139.7966, 16], ['시부야', 35.6595, 139.7005, 16], ['신주쿠', 35.6905, 139.7003, 15], ['도쿄 전체', 35.68, 139.75, 12], ['가마쿠라', 35.319, 139.55, 14], ['난바·도톤보리', 34.6687, 135.5013, 16], ['오사카성', 34.6873, 135.5262, 15]];
+const MT_KEY = 'NDPQPUp7siqFUbAkTieA';
+const a = L.map('a', { zoomControl: false, attributionControl: true }).setView([SPOTS[0][1], SPOTS[0][2]], SPOTS[0][3]);
+L.tileLayer('https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}.png?key=' + MT_KEY, { tileSize: 512, zoomOffset: -1, maxZoom: 19, attribution: '© MapTiler © OpenStreetMap contributors' }).addTo(a);
+
+const dark = matchMedia('(prefers-color-scheme: dark)').matches;
+const b = new maplibregl.Map({ container: 'b', style: 'https://tiles.openfreemap.org/styles/' + (dark ? 'dark' : 'positron'), center: [SPOTS[0][2], SPOTS[0][1]], zoom: SPOTS[0][3] - 1, attributionControl: { compact: true } });
+// 한국어 이름이 있으면 한국어, 없으면 현지 이름 · 색은 앱 톤(옅은 회색 바탕, 청록 포인트)으로
+b.on('style.load', () => {
+  const st = b.getStyle();
+  st.layers.forEach((l) => {
+    if (l.layout && l.layout['text-field']) b.setLayoutProperty(l.id, 'text-field', ['coalesce', ['get', 'name:ko'], ['get', 'name:ja'], ['get', 'name']]);
+    if (dark) return;
+    if (l.type === 'background') b.setPaintProperty(l.id, 'background-color', '#EEF1F4');
+    if (/water/.test(l.id) && l.type === 'fill') b.setPaintProperty(l.id, 'fill-color', '#CFE3EA');
+    if (/park|landcover_wood|landuse_park|grass/.test(l.id) && l.type === 'fill') b.setPaintProperty(l.id, 'fill-color', '#DCEBE3');
+    if (/railway/.test(l.id) && l.type === 'line') b.setPaintProperty(l.id, 'line-color', '#B9C2CB');
+    if (/building/.test(l.id) && l.type === 'fill') b.setPaintProperty(l.id, 'fill-color', '#E2E6EA');
+  });
+});
+// 두 지도 같이 움직이기 (MapLibre 줌은 Leaflet 256px 타일 기준보다 1 작아요)
+let lock = false;
+a.on('move', () => { if (lock) return; lock = true; const c = a.getCenter(); b.jumpTo({ center: [c.lng, c.lat], zoom: a.getZoom() - 1 }); lock = false; });
+b.on('move', () => { if (lock) return; lock = true; const c = b.getCenter(); a.setView([c.lat, c.lng], b.getZoom() + 1, { animate: false }); lock = false; });
+const box = document.getElementById('spots');
+SPOTS.forEach((s, i) => { const bt = document.createElement('button'); bt.textContent = s[0]; if (!i) bt.className = 'on'; bt.onclick = () => { box.querySelectorAll('button').forEach((x) => x.className = ''); bt.className = 'on'; a.setView([s[1], s[2]], s[3]); }; box.appendChild(bt); });
+</script>
+</body>
+</html>
