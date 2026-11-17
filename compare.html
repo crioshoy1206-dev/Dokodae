@@ -44,6 +44,8 @@ const b = new maplibregl.Map({ container: 'b', style: 'https://tiles.openfreemap
 b.on('style.load', () => {
   const st = b.getStyle();
   st.layers.forEach((l) => {
+    // 도로 번호 표지(흰 상자 아이콘)는 숨겨요
+    if (l.type === 'symbol' && (/shield/.test(l.id) || (l['source-layer'] === 'transportation_name' && l.layout && l.layout['icon-image']))) { b.setLayoutProperty(l.id, 'visibility', 'none'); return; }
     if (l.layout && l.layout['text-field']) b.setLayoutProperty(l.id, 'text-field', ['coalesce', ['get', 'name:en'], ['get', 'name_en'], ['get', 'name:latin'], ['get', 'name']]);
     if (dark) return;
     if (l.type === 'background') b.setPaintProperty(l.id, 'background-color', '#EEF1F4');
