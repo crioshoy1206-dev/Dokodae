@@ -536,6 +536,25 @@ nav button.on::before{content:'';position:absolute;z-index:-1;border-radius:999p
 .aisug{padding:12px 0;border-top:1px solid var(--line)}
 .aisug .muted,.airow2 .muted{font-size:13px;margin-top:2px}
 .aitag{display:inline-block;font-size:11px;font-weight:700;color:var(--pri-text);background:var(--pri-soft);border-radius:999px;padding:1px 8px;margin-right:6px;vertical-align:2px}
+/* 모바일 일정 글자·간격 한 단계 작게 */
+@media (max-width:639px), (max-width:899px) and (orientation:portrait), (max-width:899px) and (min-height:521px){
+  .dayhead h2{font-size:20px}
+  .dayhead .sub,.legend{font-size:12px}
+  .stop{grid-template-columns:42px 24px minmax(0,1fr);gap:8px;padding:9px 0}
+  .stop:not(.open){padding-top:9px;padding-bottom:9px}
+  .stop::before,.stop::after{left:60px}
+  .stop::before{height:22px}.stop::after{top:22px}
+  .stop .time{font-size:12.5px;padding-top:3px}
+  .stop .num{width:24px;height:24px;font-size:11.5px;border-width:2.5px}
+  .stop.cur .num{width:30px;height:30px}
+  .what > b{font-size:14.5px}
+  .stop .sdet .memo{font-size:12px}
+  .todo li{font-size:12.5px}
+  .leg{min-height:28px;padding:4px 0 4px 82px}
+  .leg::before{left:60px}
+  .leg span{font-size:12px}
+  .meal{margin-left:74px}
+}
 </style>
 </head>
 <body>
